@@ -65,6 +65,18 @@ async function startServer() {
     res.json({ status: "ok", rooms: Object.keys(roomStates).length });
   });
 
+  app.get("/api/rooms", (req, res) => {
+    const rooms = Object.keys(roomStates).map(roomId => {
+      const socketRoom = io.sockets.adapter.rooms.get(roomId);
+      return {
+        id: roomId,
+        playerCount: socketRoom ? socketRoom.size : 0,
+        isStarted: roomStates[roomId]?.isGameStarted || false
+      };
+    });
+    res.json(rooms);
+  });
+
   // Vite middleware for local development ONLY
   if (process.env.NODE_ENV !== "production" && !process.env.BACKEND_ONLY) {
     const { createServer: createViteServer } = await import("vite");

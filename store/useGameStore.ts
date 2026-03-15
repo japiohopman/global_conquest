@@ -4,7 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { 
   GameState, PlayerId, GamePhase, TerritoryState, AssetCard, PlayerConfig, 
   Mission, MoveSuggestion, AiDifficulty, SetupRule, 
-  CampaignState, TheatreId, CampaignMedal, CommanderPerk 
+  CampaignState, TheatreId, CampaignMedal, CommanderPerk, ChatMessage, RoomInfo 
 } from '../types';
 import { ADJACENCIES, CONTINENTS, FULL_DECK, MISSION_LIST, PLAYER_COLORS } from '../constants';
 import { soundEngine } from '../services/soundEngine';
@@ -47,6 +47,8 @@ interface GameStore extends GameState {
   strategicAdvice: MoveSuggestion | null;
   isFetchingAdvice: boolean;
   messages: ChatMessage[];
+  availableRooms: RoomInfo[];
+  isFetchingRooms: boolean;
   
   // Multiplayer
   socket: Socket | null;
@@ -57,6 +59,7 @@ interface GameStore extends GameState {
   disconnectMultiplayer: () => void;
   syncState: (payload: Partial<GameStore>) => void;
   sendChatMessage: (text: string) => void;
+  fetchRooms: () => Promise<void>;
   
   // Campaign Actions
   initCampaignGame: (theatreId: TheatreId, totalCommanders?: number) => void;
@@ -155,6 +158,8 @@ const initialState = {
   strategicAdvice: null,
   isFetchingAdvice: false,
   messages: [],
+  availableRooms: [],
+  isFetchingRooms: false,
   socket: null,
   isMultiplayer: false,
   roomId: null,
@@ -239,6 +244,22 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     socket.emit('chat-message', { roomId, message: msg });
     set(s => ({ messages: [...s.messages, msg].slice(-50) }));
+  },
+
+  fetchRooms: async () => {
+    set({ isFetchingRooms: true });
+    try {
+      const baseUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
+      const res = await fetch(`${baseUrl}/api/rooms`);
+      if (res.ok) {
+        const rooms = await res.json();
+        set({ availableRooms: rooms });
+      }
+    } catch (e) {
+      console.error("Failed to fetch rooms:", e);
+    } finally {
+      set({ isFetchingRooms: false });
+    }
   },
 
   syncState: (payload) => {

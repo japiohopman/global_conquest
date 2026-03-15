@@ -128,3 +128,9 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
 }
+
+export interface RoomInfo {
+  id: string;
+  playerCount: number;
+  isStarted: boolean;
+}
