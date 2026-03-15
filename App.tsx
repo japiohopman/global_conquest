@@ -306,12 +306,12 @@ const App: React.FC = () => {
   if (mode === 'HOME') return (
     <div className="flex h-screen w-screen items-center justify-center bg-[#050508] text-white font-sans overflow-hidden select-none relative">
       <ChromaKeyFilter /><GlobeIntro />
-      <div className="z-10 flex flex-col items-center gap-12 max-w-4xl px-8 text-center animate-in fade-in zoom-in duration-1000">
+      <div className="z-10 flex flex-col items-center gap-6 sm:gap-12 max-w-4xl px-8 text-center animate-in fade-in zoom-in duration-1000">
          <div className="space-y-4 text-center">
-            <h1 className="text-6xl sm:text-8xl lg:text-9xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-[0_20px_50px_rgba(79,70,229,0.3)]">GLOBAL<br/>CONQUEST</h1>
-            <div className="flex items-center justify-center gap-4"><div className="h-px w-12 bg-indigo-500/50" /><span className="text-[12px] sm:text-[16px] font-black text-indigo-400 uppercase tracking-[0.8em]">Neural Directive</span><div className="h-px w-12 bg-indigo-500/50" /></div>
+            <h1 className="text-5xl sm:text-7xl lg:text-9xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-[0_20px_50px_rgba(79,70,229,0.3)]">GLOBAL<br/>CONQUEST</h1>
+            <div className="flex items-center justify-center gap-4"><div className="h-px w-12 bg-indigo-500/50" /><span className="text-[10px] sm:text-[14px] font-black text-indigo-400 uppercase tracking-[0.6em]">Neural Directive</span><div className="h-px w-12 bg-indigo-500/50" /></div>
          </div>
-         <div className="flex flex-col sm:flex-row gap-6 items-center">
+         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center">
             {!isMultiplayer && (
               <div className="flex flex-col gap-2 items-start">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Room ID</span>
@@ -425,10 +425,10 @@ const App: React.FC = () => {
         </div>
       </button>
 
-      <div className="w-full max-w-7xl bg-zinc-950/90 border-2 border-indigo-900/30 rounded-[4rem] p-16 shadow-[0_0_120px_rgba(79,70,229,0.2)] relative backdrop-blur-3xl overflow-y-auto max-h-[90vh] scrollbar-hide z-10 border-t-indigo-500/20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+      <div className="w-full max-w-7xl bg-zinc-950/90 border-2 border-indigo-900/30 rounded-[2rem] sm:rounded-[4rem] p-6 sm:p-16 shadow-[0_0_120px_rgba(79,70,229,0.2)] relative backdrop-blur-3xl overflow-y-auto max-h-[90vh] scrollbar-hide z-10 border-t-indigo-500/20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-16">
           {/* Left Column */}
-          <div className="lg:col-span-6 space-y-12">
+          <div className="lg:col-span-6 space-y-6 sm:space-y-12">
             <div className="space-y-4">
               <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">1. Establish Identity</label>
               
@@ -439,7 +439,7 @@ const App: React.FC = () => {
                 
                 return (
                   <div 
-                    className="bg-black/60 p-10 rounded-[3rem] border shadow-2xl relative overflow-hidden group transition-all duration-700"
+                    className="bg-black/60 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border shadow-2xl relative overflow-hidden group transition-all duration-700"
                     style={{ 
                       boxShadow: `0 0 0 1px ${npcColor}20, 0 25px 50px -12px rgba(0, 0, 0, 0.5)`,
                       borderColor: `${npcColor}20` 
@@ -447,7 +447,7 @@ const App: React.FC = () => {
                   >
                     {/* Tactical Frame */}
                     <div 
-                      className="absolute inset-4 border-2 border-dashed pointer-events-none opacity-20 rounded-[2rem] transition-all duration-700"
+                      className="absolute inset-4 border-2 border-dashed pointer-events-none opacity-20 rounded-[1.5rem] sm:rounded-[2rem] transition-all duration-700"
                       style={{ borderColor: npcColor }}
                     />
 
@@ -456,7 +456,7 @@ const App: React.FC = () => {
                       style={{ background: `linear-gradient(to bottom, ${npcColor}10, transparent)` }}
                     />
                     
-                    <div className="flex justify-between items-center mb-8">
+                    <div className="flex justify-between items-center mb-4 sm:mb-8">
                       <div className="flex flex-col">
                         <span 
                           className="text-[10px] font-black uppercase tracking-[0.4em] italic transition-colors duration-700"
@@ -510,16 +510,16 @@ const App: React.FC = () => {
                       </button>
 
                       {/* Avatar Display */}
-                      <div className="relative w-72 h-72 flex items-center justify-center">
+                      <div className="relative w-48 h-48 sm:w-72 sm:h-72 flex items-center justify-center">
                         <div 
-                          className="absolute inset-0 rounded-full blur-[60px] animate-pulse transition-all duration-700" 
+                          className="absolute inset-0 rounded-full blur-[40px] sm:blur-[60px] animate-pulse transition-all duration-700" 
                           style={{ backgroundColor: `${npcColor}30` }}
                         />
                         <div 
-                          className="relative z-10 w-full h-full rounded-full border-4 overflow-hidden group-hover:scale-105 transition-all duration-700 ring-8 ring-black/40"
+                          className="relative z-10 w-full h-full rounded-full border-4 overflow-hidden group-hover:scale-105 transition-all duration-700 ring-4 sm:ring-8 ring-black/40"
                           style={{ 
                             borderColor: `${npcColor}60`,
-                            boxShadow: `0 0 100px ${npcColor}40`
+                            boxShadow: `0 0 50px ${npcColor}40`
                           }}
                         >
                           <Avatar 
@@ -622,7 +622,7 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4 max-h-[450px] overflow-y-auto pr-2 scrollbar-hide">
+                <div className="grid grid-cols-4 sm:grid-cols-3 gap-3 sm:gap-4 max-h-[300px] sm:max-h-[450px] overflow-y-auto pr-2 scrollbar-hide">
                   {filteredRivals.map(n => (
                     <Tooltip key={n.id} text={`Rival: ${n.name}`}>
                       <div 
@@ -630,21 +630,20 @@ const App: React.FC = () => {
                           soundEngine.play('UI_CLICK');
                           setSelectedNpcs(prev => prev.includes(n.id) ? prev.filter(x => x !== n.id) : [...prev, n.id].slice(0, totalPlayers - 1));
                         }} 
-                        className={`group p-2 border-2 transition-all cursor-pointer relative rounded-[2rem] overflow-hidden ${selectedNpcs.includes(n.id) ? 'border-indigo-500 bg-indigo-500/20 scale-105 shadow-[0_0_40px_rgba(79,70,229,0.4)]' : 'border-zinc-800 opacity-40 hover:opacity-100 hover:border-zinc-600 bg-black/40'}`}
+                        className={`group p-1 sm:p-2 border-2 transition-all cursor-pointer relative rounded-[1rem] sm:rounded-[2rem] overflow-hidden ${selectedNpcs.includes(n.id) ? 'border-indigo-500 bg-indigo-500/20 scale-105 shadow-[0_0_40px_rgba(79,70,229,0.4)]' : 'border-zinc-800 opacity-40 hover:opacity-100 hover:border-zinc-600 bg-black/40'}`}
                       >
-                        <div className="relative aspect-square rounded-[1.5rem] overflow-hidden mb-3 ring-1 ring-white/5">
+                        <div className="relative aspect-square rounded-[0.8rem] sm:rounded-[1.5rem] overflow-hidden mb-1 sm:mb-3 ring-1 ring-white/5">
                           <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
                           {selectedNpcs.includes(n.id) && (
                             <div className="absolute inset-0 bg-indigo-500/30 flex items-center justify-center backdrop-blur-[2px]">
-                              <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,1)] animate-pulse">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" className="w-7 h-7"><path d="M20 6L9 17l-5-5"/></svg>
+                              <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-indigo-500 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,1)] animate-pulse">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" className="w-4 h-4 sm:w-7 sm:h-7"><path d="M20 6L9 17l-5-5"/></svg>
                               </div>
                             </div>
                           )}
                         </div>
                         <div className="text-center px-1 pb-1">
-                          <span className="text-[11px] bangers uppercase text-white truncate block tracking-wide">{n.name}</span>
-                          <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest block mt-1 italic">{n.voiceArchetype}</span>
+                          <span className="text-[9px] sm:text-[11px] bangers uppercase text-white truncate block tracking-wide">{n.name}</span>
                         </div>
                       </div>
                     </Tooltip>
@@ -652,14 +651,14 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">4. Difficulty Calibration</label>
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-3 gap-4 sm:gap-6">
                   {(['easy', 'normal', 'hard'] as AiDifficulty[]).map(d => (
                     <Tooltip key={d} text={d === 'easy' ? 'Reduced AI aggression.' : d === 'hard' ? 'Maximum AI efficiency.' : 'Balanced challenge.'}>
                       <button 
                         onClick={() => { soundEngine.play('UI_CLICK'); setDifficulty(d); }}
-                        className={`w-full py-8 rounded-[2rem] bangers text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${difficulty === d ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_40px_rgba(79,70,229,0.4)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
+                        className={`w-full py-4 sm:py-8 rounded-[1rem] sm:rounded-[2rem] bangers text-xl sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${difficulty === d ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_40px_rgba(79,70,229,0.4)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
                       >
                         {difficulty === d && <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.1)_50%,transparent_50%)] bg-[length:100%_4px] opacity-20" />}
                         <span className="relative z-10 italic">{d}</span>
@@ -669,14 +668,14 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">5. Deployment Protocol</label>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-4 sm:gap-6">
                   {(['random', 'manual'] as SetupRule[]).map(r => (
                     <Tooltip key={r} text={r === 'random' ? 'Territories are automatically distributed.' : 'Manual territory claim.'}>
                       <button 
                         onClick={() => { soundEngine.play('UI_CLICK'); setSetupRule(r); }}
-                        className={`w-full py-8 rounded-[2rem] bangers text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${setupRule === r ? 'bg-white text-black border-white shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
+                        className={`w-full py-4 sm:py-8 rounded-[1rem] sm:rounded-[2rem] bangers text-xl sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${setupRule === r ? 'bg-white text-black border-white shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
                       >
                         {setupRule === r && <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.05)_50%,transparent_50%)] bg-[length:100%_4px] opacity-20" />}
                         <span className="relative z-10 italic">{r}</span>
@@ -688,14 +687,14 @@ const App: React.FC = () => {
 
             </div>
  
-             <div className="flex flex-col gap-6 pt-12 border-t border-white/5">
-                <div className="grid grid-cols-2 gap-6">
+             <div className="flex flex-col gap-4 sm:gap-6 pt-6 sm:pt-12 border-t border-white/5">
+                <div className="grid grid-cols-2 gap-4 sm:gap-6">
                   <button 
                     onClick={() => {
                       soundEngine.startBgm('MAIN');
                       setMode('HOME');
                     }} 
-                    className="py-8 bg-zinc-900/80 rounded-[2.5rem] bangers text-3xl text-zinc-500 hover:text-white transition-all uppercase border-2 border-white/5 hover:border-white/20 italic"
+                    className="py-4 sm:py-8 bg-zinc-900/80 rounded-[1.5rem] sm:rounded-[2.5rem] bangers text-xl sm:text-3xl text-zinc-500 hover:text-white transition-all uppercase border-2 border-white/5 hover:border-white/20 italic"
                   >
                     Abort Mission
                   </button>
@@ -710,7 +709,7 @@ const App: React.FC = () => {
                       initGame(totalPlayers, humans, difficulty, setupRule, selectedNpcs); 
                     }} 
                     disabled={selectedNpcs.length < totalPlayers - 1}
-                    className={`py-8 rounded-[2.5rem] bangers text-4xl transition-all border-b-8 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] uppercase italic tracking-tighter ${selectedNpcs.length < totalPlayers - 1 ? 'bg-zinc-800 border-zinc-900 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-900 hover:bg-indigo-500 hover:-translate-y-1 active:translate-y-1 active:border-b-0 shadow-[0_0_40px_rgba(79,70,229,0.3)]'}`}
+                    className={`py-4 sm:py-8 rounded-[1.5rem] sm:rounded-[2.5rem] bangers text-2xl sm:text-4xl transition-all border-b-4 sm:border-b-8 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] uppercase italic tracking-tighter ${selectedNpcs.length < totalPlayers - 1 ? 'bg-zinc-800 border-zinc-900 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-900 hover:bg-indigo-500 hover:-translate-y-1 active:translate-y-1 active:border-b-0 shadow-[0_0_40px_rgba(79,70,229,0.3)]'}`}
                   >
                     {selectedNpcs.length < totalPlayers - 1 ? `Select ${totalPlayers - 1 - selectedNpcs.length} More Rivals` : 'Initiate Global Conflict'}
                   </button>
