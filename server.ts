@@ -17,7 +17,7 @@ async function startServer() {
     transports: ['websocket'],
   });
 
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Game states per room
   const roomStates: Record<string, any> = {};
