@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Mansalva&family=Noto+Serif:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=ZCOOL+XiaoWei&family=Roboto:wght@400;700&family=Mirza:wght@400;500;600;700&family=Lavishly+Yours&family=Amita:wght@400;700&family=Handjet:wght@400;700&family=Noto+Serif+HK:wght@400;700&display=swap');
+
 :root {
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
@@ -15,8 +17,6 @@
     font-size: 11px; /* Downscale from default 16px to fit small heights */
   }
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Mansalva&family=Noto+Serif:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=ZCOOL+XiaoWei&family=Roboto:wght@400;700&family=Mirza:wght@400;500;600;700&family=Lavishly+Yours&family=Amita:wght@400;700&family=Handjet:wght@400;700&family=Noto+Serif+HK:wght@400;700&display=swap');
 
 /* Custom Character Fonts */
 .font-dealer { font-family: 'Mansalva', cursive; }
