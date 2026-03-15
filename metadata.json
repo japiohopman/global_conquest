@@ -1,0 +1,7 @@
+{
+  "name": "Global Conquest: the new world order",
+  "description": "A high-fidelity classic strategy game featuring 9 unique characters with Gemini-powered voices, SVG interactive world map, and tactical card systems.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

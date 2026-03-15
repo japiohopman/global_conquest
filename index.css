@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Mansalva&family=Noto+Serif:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&family=ZCOOL+XiaoWei&family=Roboto:wght@400;700&family=Mirza:wght@400;500;600;700&family=Lavishly+Yours&family=Amita:wght@400;700&family=Handjet:wght@400;700&family=Noto+Serif+HK:wght@400;700&display=swap');
+
+/* Custom Character Fonts */
+.font-dealer { font-family: 'Mansalva', cursive; }
+.font-slavic { font-family: 'Noto Serif', serif; }
+.font-korean { font-family: 'Nanum Gothic Coding', monospace; }
+.font-chinese { 
+  font-family: "Chiron Sung HK", "Noto Serif HK", serif; 
+  font-optical-sizing: auto;
+}
+.font-russian { font-family: 'Roboto', sans-serif; }
+.font-arabic { 
+  font-family: "Mirza", serif; 
+  font-weight: 400;
+  font-style: normal;
+}
+.font-euro { font-family: 'Lavishly Yours', cursive; }
+.font-hindi { font-family: 'Amita', serif; }
+.font-tech { 
+  font-family: 'Handjet', cursive; 
+  font-variation-settings: "ELGR" 1, "ELSH" 2;
+}
+
+/* Handjet variation settings if needed */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-dash {
+  animation: dash 20s linear infinite;
+}
