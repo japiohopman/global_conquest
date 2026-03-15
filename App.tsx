@@ -330,7 +330,7 @@ const App: React.FC = () => {
               <span className="relative z-10 italic">Standard Skirmish</span>
             </button>
             <button 
-              onClick={() => isMultiplayer ? disconnectMultiplayer() : connectMultiplayer(window.location.origin, multiplayerRoomId)} 
+              onClick={() => isMultiplayer ? disconnectMultiplayer() : connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, multiplayerRoomId)} 
               className={`group relative px-12 py-5 ${isMultiplayer ? 'bg-red-600' : 'bg-emerald-600'} text-white font-black uppercase tracking-[0.4em] text-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_30px_60px_rgba(16,185,129,0.2)]`}
             >
               <span className="relative z-10 italic">{isMultiplayer ? 'Disconnect Link' : 'Establish Multi-Link'}</span>

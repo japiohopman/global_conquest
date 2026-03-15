@@ -12,12 +12,13 @@ async function startServer() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
-      origin: "*",
+      origin: "*", // In production, replace with your Netlify URL for security
+      methods: ["GET", "POST"]
     },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
   });
 
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 3001; // Default to 3001 to avoid Vite conflict
 
   // Game states per room
   const roomStates: Record<string, any> = {};
@@ -29,7 +30,6 @@ async function startServer() {
       socket.join(roomId);
       console.log(`User ${socket.id} joined room: ${roomId}`);
       
-      // Send current state of the room if it exists
       if (roomStates[roomId]) {
         socket.emit("init", roomStates[roomId]);
       }
@@ -37,13 +37,12 @@ async function startServer() {
 
     socket.on("action", (data) => {
       const { roomId, action } = data;
-      console.log(`Action in room ${roomId}:`, action.type);
+      if (!roomId || !action) return;
       
       if (action.type === 'UPDATE_STATE') {
-        roomStates[roomId] = { ...roomStates[roomId], ...action.payload };
+        roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload };
       }
       
-      // Broadcast to everyone else in the room
       socket.to(roomId).emit("remote-action", action);
     });
 
@@ -52,28 +51,29 @@ async function startServer() {
     });
   });
 
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  // Health check for Render/Railway
+  app.get("/", (req, res) => {
+    res.send("Global Conquest Backend Active");
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", rooms: Object.keys(roomStates).length });
+  });
+
+  // Vite middleware for local development ONLY
+  if (process.env.NODE_ENV !== "production" && !process.env.BACKEND_ONLY) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    // Serve static files in production
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+    // In BACKEND_ONLY mode, we don't serve the frontend
+    console.log("Running in Backend-Only mode.");
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
