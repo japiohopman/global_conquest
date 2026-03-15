@@ -167,7 +167,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (existingSocket) existingSocket.disconnect();
 
     const socket = io(url, {
-      transports: ['websocket'], // Force websocket to avoid polling issues in proxy
+      transports: ['websocket', 'polling'], // Allow polling if websocket is blocked
       reconnectionAttempts: 5,
       timeout: 10000,
     });
