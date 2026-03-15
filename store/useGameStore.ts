@@ -162,6 +162,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...initialState,
 
   connectMultiplayer: (url, roomId) => {
+    console.log('Attempting connection to:', url);
     // Ensure we don't have multiple connections
     const existingSocket = get().socket;
     if (existingSocket) existingSocket.disconnect();
