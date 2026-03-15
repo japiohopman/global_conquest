@@ -46,6 +46,7 @@ interface GameStore extends GameState {
   activeComms: CommsState | null;
   strategicAdvice: MoveSuggestion | null;
   isFetchingAdvice: boolean;
+  messages: ChatMessage[];
   
   // Multiplayer
   socket: Socket | null;
@@ -55,6 +56,7 @@ interface GameStore extends GameState {
   connectMultiplayer: (url: string, roomId: string) => void;
   disconnectMultiplayer: () => void;
   syncState: (payload: Partial<GameStore>) => void;
+  sendChatMessage: (text: string) => void;
   
   // Campaign Actions
   initCampaignGame: (theatreId: TheatreId, totalCommanders?: number) => void;
@@ -152,6 +154,7 @@ const initialState = {
   activeComms: null,
   strategicAdvice: null,
   isFetchingAdvice: false,
+  messages: [],
   socket: null,
   isMultiplayer: false,
   roomId: null,
@@ -193,6 +196,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     });
 
+    socket.on('incoming-chat', (msg: ChatMessage) => {
+      set(s => ({ messages: [...s.messages, msg].slice(-50) })); // Keep last 50
+      soundEngine.play('INTEL');
+    });
+
     socket.on('init', (state: any) => {
       console.log('Received initial state:', state);
       if (state && state.isGameStarted) {
@@ -209,8 +217,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { socket } = get();
     if (socket) {
       socket.disconnect();
-      set({ socket: null, isMultiplayer: false, roomId: null });
+      set({ socket: null, isMultiplayer: false, roomId: null, messages: [] });
     }
+  },
+
+  sendChatMessage: (text) => {
+    const { socket, isMultiplayer, roomId, players, currentPlayerIndex } = get();
+    if (!isMultiplayer || !socket || !roomId) return;
+
+    const me = players[currentPlayerIndex];
+    if (!me) return;
+
+    const msg: ChatMessage = {
+      id: Math.random().toString(36).substr(2, 9),
+      senderId: me.id,
+      senderName: me.name,
+      senderColor: me.color,
+      text,
+      timestamp: Date.now()
+    };
+
+    socket.emit('chat-message', { roomId, message: msg });
+    set(s => ({ messages: [...s.messages, msg].slice(-50) }));
   },
 
   syncState: (payload) => {

@@ -45,6 +45,12 @@ async function startServer() {
       socket.to(roomId).emit("remote-action", action);
     });
 
+    socket.on("chat-message", (data) => {
+      const { roomId, message } = data;
+      console.log(`Chat in room ${roomId} from ${message.senderName}`);
+      socket.to(roomId).emit("incoming-chat", message);
+    });
+
     socket.on("disconnect", () => {
       console.log("User disconnected:", socket.id);
     });

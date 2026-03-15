@@ -119,3 +119,12 @@ export interface MoveSuggestion {
   predictedThreatId?: string;
   confidence: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  senderId: PlayerId;
+  senderName: string;
+  senderColor: string;
+  text: string;
+  timestamp: number;
+}

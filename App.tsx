@@ -13,8 +13,73 @@ import { npcData, NPC } from './npc_characters';
 import { TacticalIcon } from './components/TacticalIcons';
 import { THEATRES } from './campaign_logic';
 import { Tooltip } from './src/components/Tooltip';
-import { Menu, Settings, X, ChevronLeft, ChevronRight, LayoutDashboard, Database, ShieldAlert, Zap } from 'lucide-react';
+import { Menu, Settings, X, ChevronLeft, ChevronRight, LayoutDashboard, Database, ShieldAlert, Zap, MessageSquare, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const MultiplayerChat: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const messages = useGameStore(s => s.messages);
+  const sendMessage = useGameStore(s => s.sendChatMessage);
+  const [text, setText] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const handleSend = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!text.trim()) return;
+    sendMessage(text);
+    setText('');
+  };
+
+  return (
+    <motion.div 
+      initial={{ x: 400, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 400, opacity: 0 }}
+      className="fixed top-24 right-6 bottom-32 w-80 bg-zinc-950/90 backdrop-blur-2xl border border-indigo-500/30 rounded-[2rem] flex flex-col z-[100] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
+    >
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-indigo-500/10">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-indigo-400" />
+          <span className="text-[10px] font-black text-white uppercase tracking-widest">Comm Link</span>
+        </div>
+        <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-zinc-500 transition-colors">X</button>
+      </div>
+      
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+        {messages.length === 0 && (
+          <div className="h-full flex items-center justify-center text-center px-8">
+            <span className="text-[8px] font-mono text-zinc-600 uppercase leading-relaxed tracking-widest">Secure line established. Waiting for transmissions...</span>
+          </div>
+        )}
+        {messages.map(m => (
+          <div key={m.id} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] font-black uppercase tracking-tighter" style={{ color: m.senderColor }}>{m.senderName}</span>
+              <span className="text-[6px] font-mono text-zinc-600">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <p className="text-xs text-zinc-300 font-medium leading-relaxed bg-white/5 p-2 rounded-lg rounded-tl-none border-l-2" style={{ borderLeftColor: m.senderColor }}>{m.text}</p>
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={handleSend} className="p-4 bg-black/40 border-t border-white/5 flex gap-2">
+        <input 
+          type="text" 
+          value={text} 
+          onChange={(e) => setText(e.target.value)} 
+          placeholder="ENTER MESSAGE..." 
+          className="flex-1 bg-zinc-900 border border-indigo-500/20 rounded-xl px-4 py-2 text-[10px] font-mono text-indigo-400 outline-none focus:border-indigo-500 transition-all"
+        />
+        <button type="submit" className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white hover:bg-indigo-500 transition-all shadow-lg active:scale-95">
+          <Send className="w-4 h-4" />
+        </button>
+      </form>
+    </motion.div>
+  );
+};
 
 const HEADSHOT_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/sprite_sheet.png';
 const PROFILE_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/side_profiles.png';
@@ -268,6 +333,7 @@ const App: React.FC = () => {
   const [showTurnNotification, setShowTurnNotification] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [invasionCount, setInvasionCount] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const neededNpcs = totalPlayers - humanCount;
   const humanNpcIds = humans.map(h => h.npcId).filter(id => !!id) as string[];
@@ -798,16 +864,23 @@ const App: React.FC = () => {
               </div>
             ))}
         </div>
-        <div className="p-4 border-t border-zinc-800/40 bg-black/40">
+        <div className="p-4 border-t border-zinc-800/40 bg-black/40 flex gap-2">
+           <button 
+             onClick={() => setIsChatOpen(true)}
+             className="flex-1 py-3 bg-zinc-900 hover:bg-indigo-900/40 border border-zinc-800 hover:border-indigo-500/50 rounded-xl flex items-center justify-center gap-2 transition-all group relative"
+           >
+             <MessageSquare className="w-4 h-4 text-zinc-500 group-hover:text-indigo-500" />
+             <span className="text-[10px] font-black text-zinc-500 group-hover:text-indigo-500 uppercase tracking-widest">Chat</span>
+             {useGameStore.getState().messages.length > 0 && !isChatOpen && <div className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border border-black animate-pulse" />}
+           </button>
            <button 
              onClick={() => {
                soundEngine.play('UI_CLICK');
                setIsOptionsOpen(true);
              }}
-             className="w-full py-4 lg:py-3 bg-zinc-900 hover:bg-indigo-900/40 border border-zinc-800 hover:border-indigo-500/50 rounded-xl flex items-center justify-center gap-2 transition-all group"
+             className="w-12 py-3 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl flex items-center justify-center transition-all group"
            >
-             <Settings className="w-4 h-4 text-zinc-500 group-hover:text-indigo-500" />
-             <span className="text-[10px] font-black text-zinc-500 group-hover:text-indigo-500 uppercase tracking-widest">System Options</span>
+             <Settings className="w-4 h-4 text-zinc-500 group-hover:text-white" />
            </button>
         </div>
       </aside>
@@ -822,6 +895,13 @@ const App: React.FC = () => {
               <Menu className="w-6 h-6" />
            </button>
            <div className="flex gap-3">
+             <button 
+               onClick={() => setIsChatOpen(true)} 
+               className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform relative"
+             >
+                <MessageSquare className="w-6 h-6" />
+                {useGameStore.getState().messages.length > 0 && !isChatOpen && <div className="absolute top-2 right-2 w-3 h-3 bg-indigo-500 rounded-full border-2 border-black animate-pulse" />}
+             </button>
              <button 
                onClick={() => setIsCardOverlayOpen(true)} 
                className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform"
@@ -947,6 +1027,10 @@ const App: React.FC = () => {
           </div>
         )}
         {strategicAdvice && <div className="absolute top-24 lg:top-6 left-1/2 -translate-x-1/2 z-[40] animate-in fade-in zoom-in duration-500 bg-black/90 border border-indigo-500/50 p-3 rounded-xl max-w-sm"><p className="text-[10px] bangers text-white uppercase italic leading-tight">{strategicAdvice.recommendedAction}: {strategicAdvice.thoughtProcess}</p></div>}
+
+        <AnimatePresence>
+          {isChatOpen && <MultiplayerChat onClose={() => setIsChatOpen(false)} />}
+        </AnimatePresence>
       </main>
 
       <aside className={`fixed lg:static inset-y-0 right-0 w-72 lg:w-64 h-full bg-[#0d0d0f]/90 border-l border-zinc-800 flex flex-col z-50 transition-transform duration-500 ease-out ${isRightSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
