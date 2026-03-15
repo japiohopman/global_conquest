@@ -22,6 +22,8 @@ const DEFEATED_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/en
 const VICTORY_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/victory.png';
 const CARD_BACK_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/the_back_of_a_board_game_card_.webp';
 
+console.log('INITIATING GLOBAL CONQUEST: NEURAL LINK BACKEND IS:', import.meta.env.VITE_BACKEND_URL || 'LOCAL ORIGIN');
+
 const loadedSheets = new Set<string>();
 
 const ChromaKeyFilter = () => (
