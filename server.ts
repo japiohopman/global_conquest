@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -62,6 +61,7 @@ async function startServer() {
 
   // Vite middleware for local development ONLY
   if (process.env.NODE_ENV !== "production" && !process.env.BACKEND_ONLY) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
