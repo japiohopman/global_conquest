@@ -21,13 +21,14 @@ const LobbyScreen: React.FC = () => {
   const slotIndex = useGameStore(s => s.slotIndex);
   const selectCharacter = useGameStore(s => s.selectLobbyCharacter);
   const toggleReady = useGameStore(s => s.toggleReady);
+  const toggleAi = useGameStore(s => s.toggleAiSlot);
   const startGame = useGameStore(s => s.startMultiplayerGame);
   
   if (!lobby || slotIndex === null) return null;
 
   const myPlayer = lobby.players.find(p => p.slotIndex === slotIndex)!;
   const isHost = myPlayer.isHost;
-  const allReady = lobby.players.length >= 2 && lobby.players.every(p => p.isReady);
+  const allReady = lobby.players.filter(p => p.npcId !== null).length >= 2 && lobby.players.filter(p => p.npcId !== null).every(p => p.isReady);
 
   return (
     <div className="fixed inset-0 z-[500] bg-[#050508] text-white flex flex-col items-center justify-center p-8 overflow-hidden animate-in fade-in duration-700">
@@ -43,25 +44,36 @@ const LobbyScreen: React.FC = () => {
 
           <div className="space-y-3">
             {[0, 1, 2, 3, 4, 5].map(idx => {
-              const p = lobby.players.find(lp => p.slotIndex === idx);
+              const p = lobby.players.find(lp => lp.slotIndex === idx);
               const npc = p?.npcId ? npcData.find(n => n.id === p.npcId) : null;
+              const isVacant = !p || (p.socketId === null && p.type === 'human');
+              const isAi = p?.type === 'ai';
               
               return (
                 <div key={idx} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${slotIndex === idx ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]' : 'bg-black/40 border-white/5'}`}>
                   <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-white/10">
                     {npc ? <Avatar spriteIndex={npc.spriteIndex} type="head" className="w-full h-full" noBorder /> : <div className="w-full h-full flex items-center justify-center opacity-20"><Users className="w-6 h-6" /></div>}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm bangers tracking-widest uppercase">{p ? p.name : `VACANT SLOT ${idx + 1}`}</span>
+                      <span className="text-sm bangers tracking-widest uppercase truncate">{p ? p.name : `VACANT SLOT ${idx + 1}`}</span>
                       {p?.isHost && <span className="text-[8px] font-black text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase">Host</span>}
+                      {isAi && <span className="text-[8px] font-black text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase">AI</span>}
                     </div>
-                    <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
-                      {npc ? npc.name : 'Waiting for connection...'}
+                    <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest truncate">
+                      {npc ? npc.name : isVacant ? 'Waiting for connection...' : 'Configuring...'}
                     </div>
                   </div>
-                  {p && (
-                    <div className={`w-3 h-3 rounded-full ${p.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
+                  
+                  {isHost && isVacant && idx !== slotIndex && (
+                    <button onClick={() => toggleAi(idx)} className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all">Add AI</button>
+                  )}
+                  {isHost && isAi && (
+                    <button onClick={() => toggleAi(idx)} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[8px] font-black text-red-500 uppercase tracking-widest transition-all">Remove</button>
+                  )}
+                  
+                  {p && !isVacant && (
+                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${p.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
                   )}
                 </div>
               );

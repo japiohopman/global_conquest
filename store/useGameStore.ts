@@ -66,6 +66,7 @@ interface GameStore extends GameState {
   updateLobby: (lobby: LobbyState) => void;
   selectLobbyCharacter: (npcId: string) => void;
   toggleReady: () => void;
+  toggleAiSlot: (slotIndex: number) => void;
   startMultiplayerGame: () => void;
   
   // Campaign Actions
@@ -337,35 +338,63 @@ export const useGameStore = create<GameStore>((set, get) => ({
     soundEngine.play('CONFIRM');
   },
 
+  toggleAiSlot: (slotIndex) => {
+    const { lobby, updateLobby } = get();
+    if (!lobby) return;
+
+    const newPlayers = lobby.players.map(p => {
+      if (p.slotIndex === slotIndex) {
+        if (p.type === 'human' && p.socketId === null) {
+          // Find first NPC not taken
+          const takenNpcIds = lobby.players.map(lp => lp.npcId).filter(id => !!id);
+          const availableNpc = npcData.find(n => !takenNpcIds.includes(n.id));
+          return {
+            ...p,
+            type: 'ai' as const,
+            npcId: availableNpc?.id || null,
+            name: availableNpc ? `BOT ${availableNpc.name.toUpperCase()}` : 'BOT COMMANDER',
+            isReady: true
+          };
+        } else if (p.type === 'ai') {
+          return {
+            ...p,
+            type: 'human' as const,
+            npcId: null,
+            name: `COMMANDER ${p.slotIndex + 1}`,
+            isReady: false
+          };
+        }
+      }
+      return p;
+    });
+
+    updateLobby({ ...lobby, players: newPlayers });
+    soundEngine.play('UI_CLICK');
+  },
+
   startMultiplayerGame: () => {
     const { lobby, socket, roomId } = get();
     if (!lobby || !socket || !roomId) return;
 
-    // Convert Lobby Players to Game Players
-    const humanConfigs = lobby.players.map(p => {
-      const npc = npcData.find(n => n.id === p.npcId)!;
-      return {
-        name: p.name,
-        color: npc.color,
-        npcId: p.npcId!
-      };
-    });
+    const activeLobbyPlayers = lobby.players.filter(p => p.npcId !== null && (p.socketId !== null || p.type === 'ai'));
+    if (activeLobbyPlayers.length < 2) {
+      soundEngine.play('ERROR');
+      return;
+    }
 
-    // Reuse initGame logic but don't call it directly (to avoid sync loops)
-    // We create the state and broadcast it once.
-    
-    // Total players (Host can decide to add AI later, for now just humans)
-    const total = humanConfigs.length; 
-    
-    // Prepare temporary players array to get all colors
-    const players: PlayerConfig[] = [];
-    humanConfigs.forEach((h, i) => {
-      const npcProfile = npcData.find(n => n.id === h.npcId)!;
-      players.push({ 
-        id: `h_${i}`, type: 'human', color: h.color, name: h.name, 
-        isEliminated: false, mission: {} as Mission, spriteIndex: npcProfile.spriteIndex, persona: npcProfile.persona,
+    const players: PlayerConfig[] = activeLobbyPlayers.map(p => {
+      const npcProfile = npcData.find(n => n.id === p.npcId)!;
+      return { 
+        id: p.type === 'human' ? `h_${p.slotIndex}` : `ai_${p.slotIndex}`, 
+        type: p.type, 
+        color: npcProfile.color, 
+        name: p.name, 
+        isEliminated: false, 
+        mission: {} as Mission, 
+        spriteIndex: npcProfile.spriteIndex, 
+        persona: npcProfile.persona,
         voiceKey: npcProfile.voiceKeyOverride || npcProfile.name.toLowerCase().replace(/\s/g, '_')
-      });
+      };
     });
 
     const territoryIds = Object.keys(ADJACENCIES);
@@ -375,7 +404,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       territories[id] = { id, name: id.replace(/_/g, ' ').toUpperCase(), owner: 'neutral', troops: 0, continent };
     });
 
-    // Random distribution
     const shuffledTerrs = [...territoryIds].sort(() => Math.random() - 0.5);
     shuffledTerrs.forEach((id, idx) => {
       const owner = players[idx % players.length];
@@ -383,6 +411,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       territories[id].troops = 1;
     });
 
+    const total = players.length;
     const startArmiesPerPlayer = STARTING_ARMIES[total] || 20;
     const playerHands: Record<PlayerId, AssetCard[]> = {};
     players.forEach(p => playerHands[p.id] = []);
