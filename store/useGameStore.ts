@@ -49,6 +49,7 @@ interface GameStore extends GameState {
   messages: ChatMessage[];
   availableRooms: RoomInfo[];
   isFetchingRooms: boolean;
+  localPlayerId: PlayerId | null;
   
   // Multiplayer
   socket: Socket | null;
@@ -160,6 +161,7 @@ const initialState = {
   messages: [],
   availableRooms: [],
   isFetchingRooms: false,
+  localPlayerId: null,
   socket: null,
   isMultiplayer: false,
   roomId: null,
@@ -182,7 +184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
     
     socket.on('connect', () => {
-      console.log('Connected to multiplayer server');
+      console.log('Connected to multiplayer server as', socket.id);
       socket.emit('join-room', roomId);
       set({ isMultiplayer: true, socket, roomId });
     });
@@ -194,23 +196,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     socket.on('remote-action', (action: any) => {
-      console.log('Received remote action:', action);
-      // Apply remote action without re-emitting
+      // Apply remote action WITHOUT overwriting local-only state
       if (action.type === 'UPDATE_STATE') {
-        set({ ...action.payload, lastActionSource: 'remote' as const });
+        const { socket, roomId, isMultiplayer, localPlayerId, ...remoteState } = action.payload;
+        set({ ...remoteState, lastActionSource: 'remote' as const });
       }
     });
 
     socket.on('incoming-chat', (msg: ChatMessage) => {
-      set(s => ({ messages: [...s.messages, msg].slice(-50) })); // Keep last 50
+      set(s => ({ messages: [...s.messages, msg].slice(-50) }));
       soundEngine.play('INTEL');
     });
 
-    socket.on('init', (state: any) => {
-      console.log('Received initial state:', state);
-      if (state && state.isGameStarted) {
-        set({ ...state, lastActionSource: 'remote' as const });
+    socket.on('init', (data: { state: any, messages: any[] }) => {
+      console.log('Received room initialization data');
+      const newState: any = { messages: data.messages };
+      
+      if (data.state && data.state.isGameStarted) {
+        // Protect local state during initialization
+        const { socket, roomId, isMultiplayer, localPlayerId, ...remoteState } = data.state;
+        Object.assign(newState, remoteState);
       }
+      
+      set({ ...newState, lastActionSource: 'remote' as const });
     });
 
     socket.on('disconnect', () => {
@@ -455,6 +463,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newState = {
       ...initialState, territories, players, reinforcementsAvailable: startArmiesPerPlayer, difficulty: diff, setupRule: setup,
       deck: [...FULL_DECK].sort(() => Math.random() - 0.5), playerHands, isGameStarted: true,
+      localPlayerId: players.find(p => p.type === 'human')?.id || null,
       pendingMissionPlayerId: players.find(p => p.type === 'human')?.id,
       missionOptions: MISSION_LIST.filter(m => {
         if (usedMissionIds.has(m.id)) return false;

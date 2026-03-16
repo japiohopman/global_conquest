@@ -18,38 +18,48 @@ async function startServer() {
   });
 
   const PORT = process.env.PORT || 3001; // Default to 3001 to avoid Vite conflict
+// Game states per room
+const roomStates: Record<string, any> = {};
+const roomMessages: Record<string, any[]> = {};
 
-  // Game states per room
-  const roomStates: Record<string, any> = {};
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
 
-  io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+  socket.on("join-room", (roomId) => {
+    socket.join(roomId);
+    console.log(`User ${socket.id} joined room: ${roomId}`);
 
-    socket.on("join-room", (roomId) => {
-      socket.join(roomId);
-      console.log(`User ${socket.id} joined room: ${roomId}`);
-      
-      if (roomStates[roomId]) {
-        socket.emit("init", roomStates[roomId]);
-      }
+    // Initialize room structures if new
+    if (!roomStates[roomId]) roomStates[roomId] = { isGameStarted: false };
+    if (!roomMessages[roomId]) roomMessages[roomId] = [];
+
+    // Send current state AND chat history
+    socket.emit("init", {
+      state: roomStates[roomId],
+      messages: roomMessages[roomId]
     });
+  });
 
-    socket.on("action", (data) => {
-      const { roomId, action } = data;
-      if (!roomId || !action) return;
-      
-      if (action.type === 'UPDATE_STATE') {
-        roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload };
-      }
-      
-      socket.to(roomId).emit("remote-action", action);
-    });
+  socket.on("action", (data) => {
+    const { roomId, action } = data;
+    if (!roomId || !action) return;
 
-    socket.on("chat-message", (data) => {
-      const { roomId, message } = data;
-      console.log(`Chat in room ${roomId} from ${message.senderName}`);
-      socket.to(roomId).emit("incoming-chat", message);
-    });
+    if (action.type === 'UPDATE_STATE') {
+      roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload };
+    }
+
+    socket.to(roomId).emit("remote-action", action);
+  });
+
+  socket.on("chat-message", (data) => {
+    const { roomId, message } = data;
+    if (!roomMessages[roomId]) roomMessages[roomId] = [];
+
+    roomMessages[roomId].push(message);
+    if (roomMessages[roomId].length > 50) roomMessages[roomId].shift();
+
+    socket.to(roomId).emit("incoming-chat", message);
+  });
 
     socket.on("disconnect", () => {
       console.log("User disconnected:", socket.id);
