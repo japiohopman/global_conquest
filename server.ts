@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
+import { LobbyState, LobbyPlayer } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,11 +18,11 @@ async function startServer() {
     transports: ['websocket', 'polling'],
   });
 
-  const PORT = process.env.PORT || 3001;
+  const PORT = parseInt(process.env.PORT || '3001', 10);
 
   const roomStates: Record<string, any> = {};
   const roomMessages: Record<string, any[]> = {};
-  const roomLobbies: Record<string, any> = {}; 
+  const roomLobbies: Record<string, LobbyState> = {}; 
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -31,7 +32,7 @@ async function startServer() {
 
       if (!roomLobbies[roomId]) {
         roomLobbies[roomId] = {
-          players: Array.from({length: 6}, (_, i) => ({
+          players: Array.from({length: 6}, (_, i): LobbyPlayer => ({
             slotIndex: i,
             socketId: null,
             name: `COMMANDER ${i + 1}`,
@@ -40,17 +41,17 @@ async function startServer() {
             isHost: false,
             type: 'human'
           })),
-          difficulty: 'normal',
-          setupRule: 'random'
+          difficulty: 'normal' as const,
+          setupRule: 'random' as const
         };
       }
 
       const lobby = roomLobbies[roomId];
-      let mySlot = lobby.players.findIndex((p: any) => p.socketId === null && p.type === 'human');
+      let mySlot = lobby.players.findIndex((p: LobbyPlayer) => p.socketId === null && p.type === 'human');
       
       if (mySlot !== -1) {
         lobby.players[mySlot].socketId = socket.id;
-        if (!lobby.players.some((p: any) => p.isHost)) {
+        if (!lobby.players.some((p: LobbyPlayer) => p.isHost)) {
           lobby.players[mySlot].isHost = true;
         }
       }
@@ -97,13 +98,14 @@ async function startServer() {
       console.log("User disconnected:", socket.id);
       for (const roomId in roomLobbies) {
         const lobby = roomLobbies[roomId];
-        const slot = lobby.players.find((p: any) => p.socketId === socket.id);
+        const slot = lobby.players.find((p: LobbyPlayer) => p.socketId === socket.id);
         if (slot) {
           slot.socketId = null;
+          slot.npcId = null; // Mark as fully vacant
           slot.isReady = false;
           if (slot.isHost) {
             slot.isHost = false;
-            const nextHuman = lobby.players.find((p: any) => p.socketId !== null);
+            const nextHuman = lobby.players.find((p: LobbyPlayer) => p.socketId !== null);
             if (nextHuman) nextHuman.isHost = true;
           }
           io.to(roomId).emit("lobby-update", lobby);

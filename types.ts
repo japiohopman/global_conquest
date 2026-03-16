@@ -48,6 +48,22 @@ export interface PlayerConfig {
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 export type SetupRule = 'manual' | 'random';
 
+export interface LobbyPlayer {
+  slotIndex: number;
+  socketId: string | null;
+  name: string;
+  npcId: string | null;
+  isReady: boolean;
+  isHost: boolean;
+  type: 'human' | 'ai';
+}
+
+export interface LobbyState {
+  players: LobbyPlayer[];
+  difficulty: AiDifficulty;
+  setupRule: SetupRule;
+}
+
 // --- Campaign Types ---
 
 export type TheatreId = 'SKIRMISH' | 'RESOURCES' | 'IRON_CURTAIN' | 'LOCKDOWN' | 'OVERRIDE';
@@ -133,20 +149,4 @@ export interface RoomInfo {
   id: string;
   playerCount: number;
   isStarted: boolean;
-}
-
-export interface LobbyPlayer {
-  slotIndex: number;
-  socketId: string | null;
-  name: string;
-  npcId: string | null;
-  isReady: boolean;
-  isHost: boolean;
-  type: 'human' | 'ai';
-}
-
-export interface LobbyState {
-  players: LobbyPlayer[];
-  difficulty: AiDifficulty;
-  setupRule: SetupRule;
 }

@@ -16,6 +16,172 @@ import { Tooltip } from './src/components/Tooltip';
 import { Menu, Settings, X, ChevronLeft, ChevronRight, LayoutDashboard, Database, ShieldAlert, Zap, MessageSquare, Send, Globe, Users, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: React.ComponentType<{ error: Error }>;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Lobby error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const Fallback = this.props.fallback || DefaultErrorFallback;
+      return <Fallback error={this.state.error!} />;
+    }
+
+    return this.props.children;
+  }
+}
+
+const DefaultErrorFallback: React.FC<{ error: Error }> = ({ error }) => (
+  <div className="fixed inset-0 z-[600] bg-red-950/90 backdrop-blur-3xl flex items-center justify-center p-8">
+    <div className="w-full max-w-md bg-zinc-900 border border-red-500/30 p-8 rounded-[2rem] shadow-[0_0_100px_rgba(239,68,68,0.2)] text-center">
+      <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
+      <h2 className="text-2xl bangers text-white mb-4">SYSTEM ERROR</h2>
+      <p className="text-zinc-300 text-sm mb-4">{error.message}</p>
+      <button 
+        onClick={() => window.location.reload()} 
+        className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white bangers rounded-xl transition-all"
+      >
+        RESTART SYSTEM
+      </button>
+    </div>
+  </div>
+);
+
+const PlayerSlot: React.FC<{
+  idx: number;
+  player: any;
+  npc: NPC | null;
+  isVacant: boolean;
+  isAi: boolean;
+  isHost: boolean;
+  slotIndex: number;
+  onToggleAi: (idx: number) => void;
+  canAddAi: boolean;
+}> = React.memo(({ idx, player, npc, isVacant, isAi, isHost, slotIndex, onToggleAi, canAddAi }) => (
+  <div className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${slotIndex === idx ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]' : 'bg-black/40 border-white/5'}`}>
+    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-white/10">
+      {npc ? <Avatar spriteIndex={npc.spriteIndex} type="head" className="w-full h-full" noBorder /> : <div className="w-full h-full flex items-center justify-center opacity-20"><Users className="w-6 h-6" /></div>}
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex justify-between items-center">
+        <span className="text-sm bangers tracking-widest uppercase truncate">{player ? player.name : `VACANT SLOT ${idx + 1}`}</span>
+        {player?.isHost && <span className="text-[8px] font-black text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase">Host</span>}
+        {isAi && <span className="text-[8px] font-black text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase">AI</span>}
+      </div>
+      <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest truncate">
+        {npc ? npc.name : isVacant ? 'Waiting for connection...' : 'Configuring...'}
+      </div>
+    </div>
+    
+    {isHost && isVacant && idx !== slotIndex && (
+      <button 
+        onClick={() => onToggleAi(idx)} 
+        disabled={!canAddAi}
+        className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {canAddAi ? 'Add AI' : 'No NPCs'}
+      </button>
+    )}
+    {isHost && isAi && (
+      <button onClick={() => onToggleAi(idx)} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[8px] font-black text-red-500 uppercase tracking-widest transition-all">Remove</button>
+    )}
+    
+    {player && !isVacant && (
+      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${player.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
+    )}
+  </div>
+));
+
+const CharacterSelector: React.FC<{
+  lobby: any;
+  slotIndex: number;
+  myPlayer: any;
+  onSelectCharacter: (npcId: string) => void;
+}> = React.memo(({ lobby, slotIndex, myPlayer, onSelectCharacter }) => (
+  <div className="lg:col-span-8 space-y-6">
+    <div className="flex justify-between items-end">
+      <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">Select Your Intelligence</label>
+      <span className="text-[8px] font-mono text-zinc-600 uppercase">Synchronized via Neural Link</span>
+    </div>
+
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-hide">
+      {npcData.map(n => {
+        const selectedBy = lobby.players.find((p: any) => p.npcId === n.id);
+        const isTaken = !!selectedBy && selectedBy.slotIndex !== slotIndex;
+        const isMe = selectedBy?.slotIndex === slotIndex;
+
+        return (
+          <div 
+            key={n.id}
+            onClick={() => !isTaken && !myPlayer.isReady && onSelectCharacter(n.id)}
+            className={`group relative p-2 border-2 rounded-[2rem] transition-all cursor-pointer overflow-hidden ${isMe ? 'border-indigo-500 bg-indigo-500/20 scale-105' : isTaken ? 'border-red-900/30 opacity-40 grayscale cursor-not-allowed' : 'border-zinc-800 hover:border-zinc-600 bg-black/40'}`}
+          >
+            <div className="relative aspect-square rounded-[1.5rem] overflow-hidden mb-2">
+              <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
+              {isTaken && (
+                <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center backdrop-blur-sm">
+                  <span className="text-[10px] bangers text-white uppercase tracking-widest text-center px-2">Assigned to {selectedBy.name}</span>
+                </div>
+              )}
+            </div>
+            <div className="text-center pb-1">
+              <span className="text-[11px] bangers uppercase text-white truncate block">{n.name}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+));
+
+const LobbyControls: React.FC<{
+  myPlayer: any;
+  isHost: boolean;
+  allReady: boolean;
+  onToggleReady: () => void;
+  onStartGame: () => void;
+  isStartingGame: boolean;
+}> = React.memo(({ myPlayer, isHost, allReady, onToggleReady, onStartGame, isStartingGame }) => (
+  <div className="pt-8 space-y-4">
+    <button 
+      onClick={onToggleReady}
+      disabled={!myPlayer.npcId}
+      className={`w-full py-6 rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 ${myPlayer.isReady ? 'bg-emerald-600 border-emerald-900 text-white' : 'bg-indigo-600 border-indigo-900 text-white hover:bg-indigo-500'} active:border-0 active:translate-y-2 disabled:opacity-30 disabled:grayscale`}
+    >
+      {myPlayer.isReady ? 'Ready for Deployment' : 'Lock In Command'}
+    </button>
+
+    {isHost && (
+      <button 
+        onClick={onStartGame}
+        disabled={!allReady || isStartingGame}
+        className="w-full py-6 bg-white text-black rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 border-zinc-400 hover:bg-zinc-100 active:border-0 active:translate-y-2 disabled:opacity-10 disabled:grayscale shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
+      >
+        {isStartingGame ? 'Initializing...' : 'Initiate Global Conflict'}
+      </button>
+    )}
+  </div>
+));
+
 const LobbyScreen: React.FC = () => {
   const lobby = useGameStore(s => s.lobby);
   const slotIndex = useGameStore(s => s.slotIndex);
@@ -24,11 +190,46 @@ const LobbyScreen: React.FC = () => {
   const toggleAi = useGameStore(s => s.toggleAiSlot);
   const startGame = useGameStore(s => s.startMultiplayerGame);
   
+  const [isAddingAi, setIsAddingAi] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
+  
   if (!lobby || slotIndex === null) return null;
 
   const myPlayer = lobby.players.find(p => p.slotIndex === slotIndex)!;
   const isHost = myPlayer.isHost;
-  const allReady = lobby.players.filter(p => p.npcId !== null).length >= 2 && lobby.players.filter(p => p.npcId !== null).every(p => p.isReady);
+  const activePlayers = lobby.players.filter(p => p.npcId !== null && (p.socketId !== null || p.type === 'ai'));
+  const allHumansReady = lobby.players.filter(p => p.type === 'human' && p.npcId !== null).every(p => p.isReady);
+  const allReady = activePlayers.length >= 2 && allHumansReady;
+  
+  const takenNpcIds = lobby.players.map(p => p.npcId).filter(id => !!id);
+  const canAddAi = takenNpcIds.length < npcData.length;
+
+  const handleToggleAi = async (idx: number) => {
+    if (!canAddAi) {
+      soundEngine.play('ERROR');
+      return;
+    }
+    setIsAddingAi(true);
+    try {
+      await toggleAi(idx);
+    } catch (error) {
+      console.error('Failed to toggle AI:', error);
+      soundEngine.play('ERROR');
+    } finally {
+      setIsAddingAi(false);
+    }
+  };
+
+  const handleStartGame = async () => {
+    setIsStartingGame(true);
+    try {
+      await startGame();
+    } catch (error) {
+      console.error('Failed to start game:', error);
+      soundEngine.play('ERROR');
+      setIsStartingGame(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[500] bg-[#050508] text-white flex flex-col items-center justify-center p-8 overflow-hidden animate-in fade-in duration-700">
@@ -50,92 +251,38 @@ const LobbyScreen: React.FC = () => {
               const isAi = p?.type === 'ai';
               
               return (
-                <div key={idx} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${slotIndex === idx ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]' : 'bg-black/40 border-white/5'}`}>
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-white/10">
-                    {npc ? <Avatar spriteIndex={npc.spriteIndex} type="head" className="w-full h-full" noBorder /> : <div className="w-full h-full flex items-center justify-center opacity-20"><Users className="w-6 h-6" /></div>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm bangers tracking-widest uppercase truncate">{p ? p.name : `VACANT SLOT ${idx + 1}`}</span>
-                      {p?.isHost && <span className="text-[8px] font-black text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase">Host</span>}
-                      {isAi && <span className="text-[8px] font-black text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase">AI</span>}
-                    </div>
-                    <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest truncate">
-                      {npc ? npc.name : isVacant ? 'Waiting for connection...' : 'Configuring...'}
-                    </div>
-                  </div>
-                  
-                  {isHost && isVacant && idx !== slotIndex && (
-                    <button onClick={() => toggleAi(idx)} className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all">Add AI</button>
-                  )}
-                  {isHost && isAi && (
-                    <button onClick={() => toggleAi(idx)} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[8px] font-black text-red-500 uppercase tracking-widest transition-all">Remove</button>
-                  )}
-                  
-                  {p && !isVacant && (
-                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${p.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
-                  )}
-                </div>
+                <PlayerSlot
+                  key={idx}
+                  idx={idx}
+                  player={p}
+                  npc={npc}
+                  isVacant={isVacant}
+                  isAi={isAi}
+                  isHost={isHost}
+                  slotIndex={slotIndex}
+                  onToggleAi={handleToggleAi}
+                  canAddAi={canAddAi}
+                />
               );
             })}
           </div>
 
-          <div className="pt-8 space-y-4">
-            <button 
-              onClick={toggleReady}
-              disabled={!myPlayer.npcId}
-              className={`w-full py-6 rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 ${myPlayer.isReady ? 'bg-emerald-600 border-emerald-900 text-white' : 'bg-indigo-600 border-indigo-900 text-white hover:bg-indigo-500'} active:border-0 active:translate-y-2 disabled:opacity-30 disabled:grayscale`}
-            >
-              {myPlayer.isReady ? 'Ready for Deployment' : 'Lock In Command'}
-            </button>
-
-            {isHost && (
-              <button 
-                onClick={startGame}
-                disabled={!allReady}
-                className="w-full py-6 bg-white text-black rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 border-zinc-400 hover:bg-zinc-100 active:border-0 active:translate-y-2 disabled:opacity-10 disabled:grayscale shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
-              >
-                Initiate Global Conflict
-              </button>
-            )}
-          </div>
+          <LobbyControls
+            myPlayer={myPlayer}
+            isHost={isHost}
+            allReady={allReady}
+            onToggleReady={toggleReady}
+            onStartGame={handleStartGame}
+            isStartingGame={isStartingGame}
+          />
         </div>
 
-        {/* Right: Character Selection */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="flex justify-between items-end">
-            <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">Select Your Intelligence</label>
-            <span className="text-[8px] font-mono text-zinc-600 uppercase">Synchronized via Neural Link</span>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-hide">
-            {npcData.map(n => {
-              const selectedBy = lobby.players.find(p => p.npcId === n.id);
-              const isTaken = !!selectedBy && selectedBy.slotIndex !== slotIndex;
-              const isMe = selectedBy?.slotIndex === slotIndex;
-
-              return (
-                <div 
-                  key={n.id}
-                  onClick={() => !isTaken && !myPlayer.isReady && selectCharacter(n.id)}
-                  className={`group relative p-2 border-2 rounded-[2rem] transition-all cursor-pointer overflow-hidden ${isMe ? 'border-indigo-500 bg-indigo-500/20 scale-105' : isTaken ? 'border-red-900/30 opacity-40 grayscale cursor-not-allowed' : 'border-zinc-800 hover:border-zinc-600 bg-black/40'}`}
-                >
-                  <div className="relative aspect-square rounded-[1.5rem] overflow-hidden mb-2">
-                    <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
-                    {isTaken && (
-                      <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center backdrop-blur-sm">
-                        <span className="text-[10px] bangers text-white uppercase tracking-widest text-center px-2">Assigned to {selectedBy.name}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-center pb-1">
-                    <span className="text-[11px] bangers uppercase text-white truncate block">{n.name}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <CharacterSelector
+          lobby={lobby}
+          slotIndex={slotIndex}
+          myPlayer={myPlayer}
+          onSelectCharacter={selectCharacter}
+        />
       </div>
     </div>
   );
@@ -150,7 +297,7 @@ const RoomBrowser: React.FC<{ onClose: () => void, onJoin: (id: string) => void 
     fetchRooms();
     const interval = setInterval(fetchRooms, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchRooms]);
 
   return (
     <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in fade-in zoom-in duration-500">
@@ -693,7 +840,7 @@ const App: React.FC = () => {
   if (mode === 'SKIRMISH_SETUP') return (
     <div className="flex h-screen items-center justify-center bg-[#050508] text-[#d4d4d8] p-10 font-sans overflow-hidden select-none relative animate-in fade-in duration-700">
       <ChromaKeyFilter /><GlobeIntro />
-      {isMultiplayer && <LobbyScreen />}
+      {isMultiplayer && <ErrorBoundary><LobbyScreen /></ErrorBoundary>}
       
       {/* Scanline Overlay */}
       <div className="absolute inset-0 pointer-events-none z-[100] opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />

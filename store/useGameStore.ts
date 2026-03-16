@@ -4,7 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { 
   GameState, PlayerId, GamePhase, TerritoryState, AssetCard, PlayerConfig, 
   Mission, MoveSuggestion, AiDifficulty, SetupRule, 
-  CampaignState, TheatreId, CampaignMedal, CommanderPerk, ChatMessage, RoomInfo 
+  CampaignState, TheatreId, CampaignMedal, CommanderPerk, ChatMessage, RoomInfo, LobbyState 
 } from '../types';
 import { ADJACENCIES, CONTINENTS, FULL_DECK, MISSION_LIST, PLAYER_COLORS } from '../constants';
 import { soundEngine } from '../services/soundEngine';
