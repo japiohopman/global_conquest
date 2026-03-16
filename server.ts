@@ -21,13 +21,24 @@ async function startServer() {
 // Game states per room
 const roomStates: Record<string, any> = {};
 const roomMessages: Record<string, any[]> = {};
+const roomMembers: Record<string, string[]> = {}; // roomId -> [socketId, socketId, ...]
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
   socket.on("join-room", (roomId) => {
     socket.join(roomId);
-    console.log(`User ${socket.id} joined room: ${roomId}`);
+
+    if (!roomMembers[roomId]) roomMembers[roomId] = [];
+    if (!roomMembers[roomId].includes(socket.id)) {
+      roomMembers[roomId].push(socket.id);
+    }
+
+    const mySlot = roomMembers[roomId].indexOf(socket.id);
+    console.log(`User ${socket.id} joined room: ${roomId} as Slot: ${mySlot}`);
+
+    // Notify the user of their assigned slot
+    socket.emit("slot-assigned", mySlot);
 
     // Initialize room structures if new
     if (!roomStates[roomId]) roomStates[roomId] = { isGameStarted: false };
@@ -40,9 +51,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("action", (data) => {
-    const { roomId, action } = data;
-    if (!roomId || !action) return;
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+    // Cleanup room members
+    for (const roomId in roomMembers) {
+      roomMembers[roomId] = roomMembers[roomId].filter(id => id !== socket.id);
+    }
+  });
 
     if (action.type === 'UPDATE_STATE') {
       roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload };

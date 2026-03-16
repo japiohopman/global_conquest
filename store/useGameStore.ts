@@ -50,6 +50,7 @@ interface GameStore extends GameState {
   availableRooms: RoomInfo[];
   isFetchingRooms: boolean;
   localPlayerId: PlayerId | null;
+  slotIndex: number | null;
   
   // Multiplayer
   socket: Socket | null;
@@ -162,6 +163,7 @@ const initialState = {
   availableRooms: [],
   isFetchingRooms: false,
   localPlayerId: null,
+  slotIndex: null,
   socket: null,
   isMultiplayer: false,
   roomId: null,
@@ -189,6 +191,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ isMultiplayer: true, socket, roomId });
     });
 
+    socket.on('slot-assigned', (index: number) => {
+      console.log('Assigned to Command Slot:', index);
+      set({ slotIndex: index, localPlayerId: `h_${index}` });
+    });
+
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
       get().addLog(`CONNECTION ERROR: ${err.message}`);
@@ -198,7 +205,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     socket.on('remote-action', (action: any) => {
       // Apply remote action WITHOUT overwriting local-only state
       if (action.type === 'UPDATE_STATE') {
-        const { socket, roomId, isMultiplayer, localPlayerId, ...remoteState } = action.payload;
+        const { socket, roomId, isMultiplayer, localPlayerId, slotIndex, ...remoteState } = action.payload;
         set({ ...remoteState, lastActionSource: 'remote' as const });
       }
     });
@@ -214,7 +221,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       
       if (data.state && data.state.isGameStarted) {
         // Protect local state during initialization
-        const { socket, roomId, isMultiplayer, localPlayerId, ...remoteState } = data.state;
+        const { socket, roomId, isMultiplayer, localPlayerId, slotIndex, ...remoteState } = data.state;
         Object.assign(newState, remoteState);
       }
       
@@ -463,7 +470,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newState = {
       ...initialState, territories, players, reinforcementsAvailable: startArmiesPerPlayer, difficulty: diff, setupRule: setup,
       deck: [...FULL_DECK].sort(() => Math.random() - 0.5), playerHands, isGameStarted: true,
-      localPlayerId: players.find(p => p.type === 'human')?.id || null,
+      slotIndex: get().slotIndex,
+      localPlayerId: get().localPlayerId || (players.find(p => p.type === 'human')?.id || null),
       pendingMissionPlayerId: players.find(p => p.type === 'human')?.id,
       missionOptions: MISSION_LIST.filter(m => {
         if (usedMissionIds.has(m.id)) return false;
