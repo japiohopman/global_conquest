@@ -51,6 +51,7 @@ interface GameStore extends GameState {
   isFetchingRooms: boolean;
   localPlayerId: PlayerId | null;
   slotIndex: number | null;
+  lobby: LobbyState | null;
   
   // Multiplayer
   socket: Socket | null;
@@ -62,6 +63,10 @@ interface GameStore extends GameState {
   syncState: (payload: Partial<GameStore>) => void;
   sendChatMessage: (text: string) => void;
   fetchRooms: () => Promise<void>;
+  updateLobby: (lobby: LobbyState) => void;
+  selectLobbyCharacter: (npcId: string) => void;
+  toggleReady: () => void;
+  startMultiplayerGame: () => void;
   
   // Campaign Actions
   initCampaignGame: (theatreId: TheatreId, totalCommanders?: number) => void;
@@ -164,6 +169,7 @@ const initialState = {
   isFetchingRooms: false,
   localPlayerId: null,
   slotIndex: null,
+  lobby: null,
   socket: null,
   isMultiplayer: false,
   roomId: null,
@@ -191,9 +197,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ isMultiplayer: true, socket, roomId });
     });
 
-    socket.on('slot-assigned', (index: number) => {
-      console.log('Assigned to Command Slot:', index);
-      set({ slotIndex: index, localPlayerId: `h_${index}` });
+    socket.on('lobby-update', (lobby: LobbyState) => {
+      console.log('Received lobby update');
+      const mySlot = lobby.players.find(p => p.socketId === socket.id);
+      if (mySlot) {
+        set({ slotIndex: mySlot.slotIndex, localPlayerId: `h_${mySlot.slotIndex}` });
+      }
+      set({ lobby });
+    });
+
+    socket.on('game-started', (state: any) => {
+      console.log('Multiplayer game initiated by host');
+      const { socket, roomId, isMultiplayer, localPlayerId, slotIndex, lobby, ...remoteState } = state;
+      set({ ...remoteState, isGameStarted: true, lastActionSource: 'remote' as const });
+      soundEngine.play('CONFIRM');
     });
 
     socket.on('connect_error', (err) => {
@@ -275,6 +292,108 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } finally {
       set({ isFetchingRooms: false });
     }
+  },
+
+  updateLobby: (lobby) => {
+    const { socket, roomId } = get();
+    if (socket && roomId) {
+      socket.emit('update-lobby', { roomId, lobby });
+    }
+    set({ lobby });
+  },
+
+  selectLobbyCharacter: (npcId) => {
+    const { lobby, slotIndex, updateLobby } = get();
+    if (!lobby || slotIndex === null) return;
+    
+    // Check if character taken by someone else
+    const taken = lobby.players.some(p => p.npcId === npcId && p.slotIndex !== slotIndex);
+    if (taken) {
+      soundEngine.play('ERROR');
+      return;
+    }
+
+    const newPlayers = lobby.players.map(p => 
+      p.slotIndex === slotIndex ? { ...p, npcId } : p
+    );
+    updateLobby({ ...lobby, players: newPlayers });
+    soundEngine.play('UI_CLICK');
+  },
+
+  toggleReady: () => {
+    const { lobby, slotIndex, updateLobby } = get();
+    if (!lobby || slotIndex === null) return;
+
+    const myPlayer = lobby.players.find(p => p.slotIndex === slotIndex);
+    if (!myPlayer || !myPlayer.npcId) {
+      soundEngine.play('ERROR');
+      return;
+    }
+
+    const newPlayers = lobby.players.map(p => 
+      p.slotIndex === slotIndex ? { ...p, isReady: !p.isReady } : p
+    );
+    updateLobby({ ...lobby, players: newPlayers });
+    soundEngine.play('CONFIRM');
+  },
+
+  startMultiplayerGame: () => {
+    const { lobby, socket, roomId } = get();
+    if (!lobby || !socket || !roomId) return;
+
+    // Convert Lobby Players to Game Players
+    const humanConfigs = lobby.players.map(p => {
+      const npc = npcData.find(n => n.id === p.npcId)!;
+      return {
+        name: p.name,
+        color: npc.color,
+        npcId: p.npcId!
+      };
+    });
+
+    // Reuse initGame logic but don't call it directly (to avoid sync loops)
+    // We create the state and broadcast it once.
+    
+    // Total players (Host can decide to add AI later, for now just humans)
+    const total = humanConfigs.length; 
+    
+    // Prepare temporary players array to get all colors
+    const players: PlayerConfig[] = [];
+    humanConfigs.forEach((h, i) => {
+      const npcProfile = npcData.find(n => n.id === h.npcId)!;
+      players.push({ 
+        id: `h_${i}`, type: 'human', color: h.color, name: h.name, 
+        isEliminated: false, mission: {} as Mission, spriteIndex: npcProfile.spriteIndex, persona: npcProfile.persona,
+        voiceKey: npcProfile.voiceKeyOverride || npcProfile.name.toLowerCase().replace(/\s/g, '_')
+      });
+    });
+
+    const territoryIds = Object.keys(ADJACENCIES);
+    const territories: Record<string, TerritoryState> = {};
+    territoryIds.forEach((id) => {
+      const continent = Object.entries(CONTINENTS).find(([_, ids]) => ids.includes(id))?.[0] || 'Unknown';
+      territories[id] = { id, name: id.replace(/_/g, ' ').toUpperCase(), owner: 'neutral', troops: 0, continent };
+    });
+
+    // Random distribution
+    const shuffledTerrs = [...territoryIds].sort(() => Math.random() - 0.5);
+    shuffledTerrs.forEach((id, idx) => {
+      const owner = players[idx % players.length];
+      territories[id].owner = owner.id;
+      territories[id].troops = 1;
+    });
+
+    const startArmiesPerPlayer = STARTING_ARMIES[total] || 20;
+    const playerHands: Record<PlayerId, AssetCard[]> = {};
+    players.forEach(p => playerHands[p.id] = []);
+
+    const gameState = {
+      ...initialState, territories, players, reinforcementsAvailable: startArmiesPerPlayer, 
+      difficulty: lobby.difficulty, setupRule: lobby.setupRule,
+      deck: [...FULL_DECK].sort(() => Math.random() - 0.5), playerHands, isGameStarted: true,
+    };
+
+    socket.emit('start-game', { roomId, gameState });
   },
 
   syncState: (payload) => {

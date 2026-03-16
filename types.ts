@@ -134,3 +134,19 @@ export interface RoomInfo {
   playerCount: number;
   isStarted: boolean;
 }
+
+export interface LobbyPlayer {
+  slotIndex: number;
+  socketId: string | null;
+  name: string;
+  npcId: string | null;
+  isReady: boolean;
+  isHost: boolean;
+  type: 'human' | 'ai';
+}
+
+export interface LobbyState {
+  players: LobbyPlayer[];
+  difficulty: AiDifficulty;
+  setupRule: SetupRule;
+}

@@ -16,6 +16,119 @@ import { Tooltip } from './src/components/Tooltip';
 import { Menu, Settings, X, ChevronLeft, ChevronRight, LayoutDashboard, Database, ShieldAlert, Zap, MessageSquare, Send, Globe, Users, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+const LobbyScreen: React.FC = () => {
+  const lobby = useGameStore(s => s.lobby);
+  const slotIndex = useGameStore(s => s.slotIndex);
+  const selectCharacter = useGameStore(s => s.selectLobbyCharacter);
+  const toggleReady = useGameStore(s => s.toggleReady);
+  const startGame = useGameStore(s => s.startMultiplayerGame);
+  
+  if (!lobby || slotIndex === null) return null;
+
+  const myPlayer = lobby.players.find(p => p.slotIndex === slotIndex)!;
+  const isHost = myPlayer.isHost;
+  const allReady = lobby.players.length >= 2 && lobby.players.every(p => p.isReady);
+
+  return (
+    <div className="fixed inset-0 z-[500] bg-[#050508] text-white flex flex-col items-center justify-center p-8 overflow-hidden animate-in fade-in duration-700">
+      <GlobeIntro />
+      
+      <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
+        {/* Left: Player Slots */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.6em]">Command Registry</span>
+            <h2 className="text-5xl bangers text-white uppercase italic tracking-tighter">Tactical Lobby</h2>
+          </div>
+
+          <div className="space-y-3">
+            {[0, 1, 2, 3, 4, 5].map(idx => {
+              const p = lobby.players.find(lp => p.slotIndex === idx);
+              const npc = p?.npcId ? npcData.find(n => n.id === p.npcId) : null;
+              
+              return (
+                <div key={idx} className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${slotIndex === idx ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]' : 'bg-black/40 border-white/5'}`}>
+                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-white/10">
+                    {npc ? <Avatar spriteIndex={npc.spriteIndex} type="head" className="w-full h-full" noBorder /> : <div className="w-full h-full flex items-center justify-center opacity-20"><Users className="w-6 h-6" /></div>}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm bangers tracking-widest uppercase">{p ? p.name : `VACANT SLOT ${idx + 1}`}</span>
+                      {p?.isHost && <span className="text-[8px] font-black text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase">Host</span>}
+                    </div>
+                    <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">
+                      {npc ? npc.name : 'Waiting for connection...'}
+                    </div>
+                  </div>
+                  {p && (
+                    <div className={`w-3 h-3 rounded-full ${p.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="pt-8 space-y-4">
+            <button 
+              onClick={toggleReady}
+              disabled={!myPlayer.npcId}
+              className={`w-full py-6 rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 ${myPlayer.isReady ? 'bg-emerald-600 border-emerald-900 text-white' : 'bg-indigo-600 border-indigo-900 text-white hover:bg-indigo-500'} active:border-0 active:translate-y-2 disabled:opacity-30 disabled:grayscale`}
+            >
+              {myPlayer.isReady ? 'Ready for Deployment' : 'Lock In Command'}
+            </button>
+
+            {isHost && (
+              <button 
+                onClick={startGame}
+                disabled={!allReady}
+                className="w-full py-6 bg-white text-black rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 border-zinc-400 hover:bg-zinc-100 active:border-0 active:translate-y-2 disabled:opacity-10 disabled:grayscale shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
+              >
+                Initiate Global Conflict
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Character Selection */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="flex justify-between items-end">
+            <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">Select Your Intelligence</label>
+            <span className="text-[8px] font-mono text-zinc-600 uppercase">Synchronized via Neural Link</span>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-hide">
+            {npcData.map(n => {
+              const selectedBy = lobby.players.find(p => p.npcId === n.id);
+              const isTaken = !!selectedBy && selectedBy.slotIndex !== slotIndex;
+              const isMe = selectedBy?.slotIndex === slotIndex;
+
+              return (
+                <div 
+                  key={n.id}
+                  onClick={() => !isTaken && !myPlayer.isReady && selectCharacter(n.id)}
+                  className={`group relative p-2 border-2 rounded-[2rem] transition-all cursor-pointer overflow-hidden ${isMe ? 'border-indigo-500 bg-indigo-500/20 scale-105' : isTaken ? 'border-red-900/30 opacity-40 grayscale cursor-not-allowed' : 'border-zinc-800 hover:border-zinc-600 bg-black/40'}`}
+                >
+                  <div className="relative aspect-square rounded-[1.5rem] overflow-hidden mb-2">
+                    <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
+                    {isTaken && (
+                      <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center backdrop-blur-sm">
+                        <span className="text-[10px] bangers text-white uppercase tracking-widest text-center px-2">Assigned to {selectedBy.name}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center pb-1">
+                    <span className="text-[11px] bangers uppercase text-white truncate block">{n.name}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const RoomBrowser: React.FC<{ onClose: () => void, onJoin: (id: string) => void }> = ({ onClose, onJoin }) => {
   const availableRooms = useGameStore(s => s.availableRooms);
   const isFetchingRooms = useGameStore(s => s.isFetchingRooms);
@@ -474,7 +587,15 @@ const App: React.FC = () => {
               <span className="relative z-10 italic">Standard Skirmish</span>
             </button>
             <button 
-              onClick={() => isMultiplayer ? disconnectMultiplayer() : connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, multiplayerRoomId)} 
+              onClick={async () => {
+                if (isMultiplayer) {
+                  disconnectMultiplayer();
+                } else {
+                  await soundEngine.startBgm('SELECT');
+                  connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, multiplayerRoomId);
+                  setMode('SKIRMISH_SETUP');
+                }
+              }} 
               className={`group relative px-12 py-5 ${isMultiplayer ? 'bg-red-600' : 'bg-emerald-600'} text-white font-black uppercase tracking-[0.4em] text-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_30px_60px_rgba(16,185,129,0.2)]`}
             >
               <span className="relative z-10 italic">{isMultiplayer ? 'Disconnect Link' : 'Establish Multi-Link'}</span>
@@ -486,7 +607,13 @@ const App: React.FC = () => {
             )}
          </div>
       </div>
-      {isBrowserOpen && <RoomBrowser onClose={() => setIsBrowserOpen(false)} onJoin={(id) => { setMultiplayerRoomId(id); connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, id); setIsBrowserOpen(false); }} />}
+      {isBrowserOpen && <RoomBrowser onClose={() => setIsBrowserOpen(false)} onJoin={async (id) => { 
+        setMultiplayerRoomId(id); 
+        await soundEngine.startBgm('SELECT');
+        connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, id); 
+        setMode('SKIRMISH_SETUP');
+        setIsBrowserOpen(false); 
+      }} />}
     </div>
   );
 
@@ -554,6 +681,7 @@ const App: React.FC = () => {
   if (mode === 'SKIRMISH_SETUP') return (
     <div className="flex h-screen items-center justify-center bg-[#050508] text-[#d4d4d8] p-10 font-sans overflow-hidden select-none relative animate-in fade-in duration-700">
       <ChromaKeyFilter /><GlobeIntro />
+      {isMultiplayer && <LobbyScreen />}
       
       {/* Scanline Overlay */}
       <div className="absolute inset-0 pointer-events-none z-[100] opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />

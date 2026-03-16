@@ -21,7 +21,7 @@ async function startServer() {
 // Game states per room
 const roomStates: Record<string, any> = {};
 const roomMessages: Record<string, any[]> = {};
-const roomMembers: Record<string, string[]> = {}; // roomId -> [socketId, socketId, ...]
+const roomLobbies: Record<string, any> = {}; // roomId -> LobbyState
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -29,29 +29,59 @@ io.on("connection", (socket) => {
   socket.on("join-room", (roomId) => {
     socket.join(roomId);
 
-    if (!roomMembers[roomId]) roomMembers[roomId] = [];
-    if (!roomMembers[roomId].includes(socket.id)) {
-      roomMembers[roomId].push(socket.id);
+    // Initialize Lobby if new
+    if (!roomLobbies[roomId]) {
+      roomLobbies[roomId] = {
+        players: [],
+        difficulty: 'normal',
+        setupRule: 'random'
+      };
     }
 
-    const mySlot = roomMembers[roomId].indexOf(socket.id);
+    const lobby = roomLobbies[roomId];
+
+    // Find first empty slot (up to 6)
+    let mySlot = lobby.players.findIndex((p: any) => p.socketId === null && p.type === 'human');
+    if (mySlot === -1 && lobby.players.length < 6) {
+      mySlot = lobby.players.length;
+      lobby.players.push({
+        slotIndex: mySlot,
+        socketId: socket.id,
+        name: `COMMANDER ${mySlot + 1}`,
+        npcId: null,
+        isReady: false,
+        isHost: mySlot === 0,
+        type: 'human'
+      });
+    } else if (mySlot !== -1) {
+      lobby.players[mySlot].socketId = socket.id;
+    }
+
     console.log(`User ${socket.id} joined room: ${roomId} as Slot: ${mySlot}`);
 
-    // Notify the user of their assigned slot
-    socket.emit("slot-assigned", mySlot);
+    // Sync to all in room
+    io.to(roomId).emit("lobby-update", lobby);
 
-    // Initialize room structures if new
     if (!roomStates[roomId]) roomStates[roomId] = { isGameStarted: false };
     if (!roomMessages[roomId]) roomMessages[roomId] = [];
 
-    // Send current state AND chat history
     socket.emit("init", {
       state: roomStates[roomId],
       messages: roomMessages[roomId]
     });
   });
 
-  socket.on("disconnect", () => {
+  socket.on("update-lobby", ({ roomId, lobby }) => {
+    roomLobbies[roomId] = lobby;
+    io.to(roomId).emit("lobby-update", lobby);
+  });
+
+  socket.on("start-game", ({ roomId, gameState }) => {
+    roomStates[roomId] = gameState;
+    io.to(roomId).emit("game-started", gameState);
+  });
+
+  socket.on("action", (data) => {
     console.log("User disconnected:", socket.id);
     // Cleanup room members
     for (const roomId in roomMembers) {
