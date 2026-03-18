@@ -1,0 +1,37 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e1b4b;stop-opacity:1" />
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="10" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <rect width="512" height="512" rx="100" fill="url(#grad1)" />
+  
+  <g filter="url(#glow)">
+    <!-- Globe Grid -->
+    <circle cx="256" cy="256" r="180" stroke="#818cf8" stroke-width="4" fill="none" opacity="0.4"/>
+    <ellipse cx="256" cy="256" rx="180" ry="60" stroke="#818cf8" stroke-width="2" fill="none" opacity="0.3"/>
+    <ellipse cx="256" cy="256" rx="60" ry="180" stroke="#818cf8" stroke-width="2" fill="none" opacity="0.3"/>
+    
+    <!-- Crosshairs -->
+    <path d="M256 56 V 116 M256 396 V 456 M56 256 H 116 M396 256 H 456" stroke="#c7d2fe" stroke-width="12" stroke-linecap="round"/>
+    
+    <!-- Center Target -->
+    <circle cx="256" cy="256" r="40" stroke="#ffffff" stroke-width="8" fill="none"/>
+    <circle cx="256" cy="256" r="10" fill="#ffffff"/>
+  </g>
+  
+  <!-- Tactical Corners -->
+  <path d="M80 80 H 160 V 90 H 90 V 160 H 80 Z" fill="#6366f1"/>
+  <path d="M432 80 H 352 V 90 H 422 V 160 H 432 Z" fill="#6366f1"/>
+  <path d="M80 432 H 160 V 422 H 90 V 352 H 80 Z" fill="#6366f1"/>
+  <path d="M432 432 H 352 V 422 H 422 V 352 H 432 Z" fill="#6366f1"/>
+</svg>
