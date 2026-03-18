@@ -3,7 +3,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
-import { LobbyState, LobbyPlayer } from "./types.js";
+import { LobbyState, LobbyPlayer, GameState } from "./types.js";
+import { validateCommand, applyCommand, GameCommand } from "./logic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ async function startServer() {
 
   const PORT = parseInt(process.env.PORT || '3001', 10);
 
-  const roomStates: Record<string, any> = {};
+  const roomStates: Record<string, GameState> = {};
   const roomMessages: Record<string, any[]> = {};
   const roomLobbies: Record<string, LobbyState> = {}; 
 
@@ -58,7 +59,6 @@ async function startServer() {
 
       io.to(roomId).emit("lobby-update", lobby);
       
-      if (!roomStates[roomId]) roomStates[roomId] = { isGameStarted: false };
       if (!roomMessages[roomId]) roomMessages[roomId] = [];
       
       socket.emit("init", {
@@ -77,11 +77,26 @@ async function startServer() {
       io.to(roomId).emit("game-started", gameState);
     });
 
+    socket.on("game-command", (data: { roomId: string, command: GameCommand }) => {
+      const { roomId, command } = data;
+      const state = roomStates[roomId];
+      if (!state) return;
+
+      if (validateCommand(state, command)) {
+        const newState = applyCommand(state, command);
+        roomStates[roomId] = newState;
+        io.to(roomId).emit("state-update", newState);
+      } else {
+        socket.emit("command-rejected", { command, reason: "Invalid move" });
+      }
+    });
+
+    // Keep legacy action for backward compatibility during transition
     socket.on("action", (data) => {
       const { roomId, action } = data;
       if (!roomId || !action) return;
       if (action.type === 'UPDATE_STATE') {
-        roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload };
+        roomStates[roomId] = { ...(roomStates[roomId] || {}), ...action.payload } as GameState;
       }
       socket.to(roomId).emit("remote-action", action);
     });
@@ -101,7 +116,7 @@ async function startServer() {
         const slot = lobby.players.find((p: LobbyPlayer) => p.socketId === socket.id);
         if (slot) {
           slot.socketId = null;
-          slot.npcId = null; // Mark as fully vacant
+          slot.npcId = null;
           slot.isReady = false;
           if (slot.isHost) {
             slot.isHost = false;

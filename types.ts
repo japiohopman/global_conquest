@@ -40,13 +40,22 @@ export interface PlayerConfig {
   name: string;
   isEliminated: boolean;
   mission: Mission;
-  spriteIndex?: number; 
+  spriteIndex?: number;
   persona?: string;
-  voiceKey: string; 
+  voiceKey: string;
+  isReady?: boolean;
+  perks?: CommanderPerk[];
 }
 
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 export type SetupRule = 'manual' | 'random';
+
+export interface BattleResult {
+  aRolls: number[];
+  dRolls: number[];
+  aLoss: number;
+  dLoss: number;
+}
 
 export interface LobbyPlayer {
   slotIndex: number;
@@ -119,6 +128,9 @@ export interface GameState {
   tradeInCount: number;
   capturedThisTurn: boolean;
   isCampaignMode: boolean;
+  winner: PlayerId | null;
+  selectedId: string | null;
+  targetId: string | null;
 }
 
 export interface RiskItem {

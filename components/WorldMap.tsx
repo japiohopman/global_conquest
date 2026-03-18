@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GameState, TerritoryState } from '../types';
 import { TERRITORY_PATHS } from '../constantsAtlasBoardes';
+import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 const LABEL_COORDS: Record<string, {x: number, y: number}> = {
   'alaska': {x: 60, y: 80}, 'northwest_territory': {x: 130, y: 80}, 'greenland': {x: 260, y: 60}, 'alberta': {x: 120, y: 120},
@@ -43,8 +44,15 @@ interface WorldMapProps {
 const WorldMap: React.FC<WorldMapProps> = ({ gameState, selectedId, targetId, suggestedId, threatId, reachableIds, onTerritoryClick }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [fireZones, setFireZones] = useState<Set<string>>(new Set());
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastTouchPos, setLastTouchPos] = useState({ x: 0, y: 0 });
+  const [lastTouchDist, setLastTouchDist] = useState<number | null>(null);
+  
   const prevTroops = useRef<Record<string, number>>({});
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const requestRef = useRef<number>(null);
 
@@ -159,6 +167,71 @@ const WorldMap: React.FC<WorldMapProps> = ({ gameState, selectedId, targetId, su
     };
   }, [fireZones]);
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    setLastTouchPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastTouchPos.x;
+    const dy = e.clientY - lastTouchPos.y;
+    setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+    setLastTouchPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      setLastTouchPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      setLastTouchDist(null);
+    } else if (e.touches.length === 2) {
+      setIsDragging(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setLastTouchDist(dist);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isDragging) {
+      const dx = e.touches[0].clientX - lastTouchPos.x;
+      const dy = e.touches[0].clientY - lastTouchPos.y;
+      setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setLastTouchPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (lastTouchDist !== null) {
+        const delta = dist / lastTouchDist;
+        setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 4));
+      }
+      setLastTouchDist(dist);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    setLastTouchDist(null);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 4));
+  };
+
+  const resetView = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
   const getStyle = (id: string) => {
     const t = gameState.territories[id];
     if (!t) return { fill: 'transparent', stroke: '#27272a' };
@@ -186,101 +259,133 @@ const WorldMap: React.FC<WorldMapProps> = ({ gameState, selectedId, targetId, su
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center overflow-visible p-4">
-      <div className="relative w-full h-full">
-        {/* Particle Canvas Overlay */}
-        <canvas 
-          ref={canvasRef}
-          width={750}
-          height={521}
-          className="absolute inset-0 w-full h-full pointer-events-none z-[100]"
-          style={{ imageRendering: 'pixelated' }}
-        />
-        
-        <svg viewBox="0 0 750 521" className="w-full h-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] rounded-[2rem] overflow-visible relative">
-          <image aria-hidden="true" href="https://www.krea.ai/api/img?f=webp&i=https%3A%2F%2Fapp-uploads.krea.ai%2F9678081a-d6a5-4cb1-8e01-1019733c1706%2F1768381276821-can_we_make_a_sea_behind_this_board_game_map_please_leave_the_map_intact_the_body_of_water_could_hav_b5a5ff3a-d2a3-424f-af97-ba4d28cd71c4.webp" x="-17" y="0" width="785" height="521" className="opacity-40 grayscale-[50%]" />
-          
-          {/* Connection Lines */}
-          <image href="/risk_connect_lines.svg" x="0" y="0" width="750" height="521" className="opacity-60 pointer-events-none brightness-150 contrast-125" />
+    <div 
+      ref={containerRef}
+      className="relative w-full h-full flex items-center justify-center overflow-hidden"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
+    >
+      {/* Zoom Controls */}
+      <div className="absolute top-24 lg:top-6 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
+        <button onClick={() => setZoom(prev => Math.min(prev * 1.2, 4))} className="w-10 h-10 lg:w-12 lg:h-12 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white hover:bg-white/10 active:scale-90 transition-all shadow-xl">
+          <ZoomIn className="w-5 h-5 lg:w-6 lg:h-6" />
+        </button>
+        <button onClick={() => setZoom(prev => Math.max(prev / 1.2, 0.5))} className="w-10 h-10 lg:w-12 lg:h-12 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white hover:bg-white/10 active:scale-90 transition-all shadow-xl">
+          <ZoomOut className="w-5 h-5 lg:w-6 lg:h-6" />
+        </button>
+        <button onClick={resetView} className="w-10 h-10 lg:w-12 lg:h-12 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white hover:bg-white/10 active:scale-90 transition-all shadow-xl">
+          <Maximize className="w-5 h-5 lg:w-6 lg:h-6" />
+        </button>
+      </div>
 
-          <g className="territories">
-            {Object.keys(gameState.territories).map(id => (
-              <path key={id} d={TERRITORY_PATHS[id]} onClick={() => onTerritoryClick(id)} onMouseEnter={() => { setHoveredId(id); import('../services/soundEngine').then(({ soundEngine }) => soundEngine.play('UI_HOVER')); }} onMouseLeave={() => setHoveredId(null)} className={`cursor-pointer transition-all outline-none ${targetId === id ? 'animate-pulse' : ''}`} style={getStyle(id)} />
-            ))}
-          </g>
-          
-          {/* Battle Link */}
-          {selectedId && targetId && LABEL_COORDS[selectedId] && LABEL_COORDS[targetId] && (
-            <g className="battle-link animate-in fade-in duration-700">
-              <defs>
-                <linearGradient id="battleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor={gameState.players.find(p => p.id === gameState.territories[selectedId].owner)?.color || '#fff'} stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity="0.8" />
-                </linearGradient>
-              </defs>
-              <line 
-                x1={LABEL_COORDS[selectedId].x} 
-                y1={LABEL_COORDS[selectedId].y} 
-                x2={LABEL_COORDS[targetId].x} 
-                y2={LABEL_COORDS[targetId].y} 
-                stroke="url(#battleGradient)" 
-                strokeWidth="3" 
-                strokeDasharray="8 4"
-                className="animate-[dash_20s_linear_infinite]"
-              />
-              <circle cx={LABEL_COORDS[selectedId].x} cy={LABEL_COORDS[selectedId].y} r="4" fill={gameState.players.find(p => p.id === gameState.territories[selectedId].owner)?.color || '#fff'} />
-              <circle cx={LABEL_COORDS[targetId].x} cy={LABEL_COORDS[targetId].y} r="4" fill="#ef4444" className="animate-ping" />
-            </g>
-          )}
-          <g pointerEvents="none">
-            {(Object.entries(gameState.territories) as [string, TerritoryState][]).map(([id, t]) => {
-              if (t.owner === 'neutral') return null;
-              const coords = LABEL_COORDS[id];
-              if (!coords) return null;
-              const player = gameState.players.find(p => p.id === t.owner);
-              const isSelected = selectedId === id;
+      <div 
+        className="relative w-full h-full transition-transform duration-75 ease-out will-change-transform"
+        style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="relative w-full h-full max-w-[750px] aspect-[750/521]">
+            {/* Particle Canvas Overlay */}
+            <canvas 
+              ref={canvasRef}
+              width={750}
+              height={521}
+              className="absolute inset-0 w-full h-full pointer-events-none z-[100]"
+              style={{ imageRendering: 'pixelated' }}
+            />
+            
+            <svg viewBox="0 0 750 521" className="w-full h-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)] rounded-[2rem] overflow-visible relative">
+              <image aria-hidden="true" href="https://www.krea.ai/api/img?f=webp&i=https%3A%2F%2Fapp-uploads.krea.ai%2F9678081a-d6a5-4cb1-8e01-1019733c1706%2F1768381276821-can_we_make_a_sea_behind_this_board_game_map_please_leave_the_map_intact_the_body_of_water_could_hav_b5a5ff3a-d2a3-424f-af97-ba4d28cd71c4.webp" x="-17" y="0" width="785" height="521" className="opacity-40 grayscale-[50%]" />
               
-              return (
-                <g key={`node-${id}`} className="transition-all duration-300">
-                  {/* Soldier Silhouette Icon - Adjusted size to be smaller and shifted slightly right */}
-                  <g transform={`translate(${coords.x - 7}, ${coords.y - 18}) scale(0.038)`}>
-                    {/* Shadow/Outline for visibility */}
-                    <path 
-                      d={TROOP_ICON_PATH} 
-                      fill="black" 
-                      transform="translate(40, 40)"
-                      className="opacity-40"
-                    />
-                    <path 
-                      d={TROOP_ICON_PATH} 
-                      fill={player?.color || '#fff'} 
-                      stroke="white" 
-                      strokeWidth={isSelected ? "40" : "25"}
-                      className={`transition-all duration-300 ${isSelected ? 'filter drop-shadow-[0_0_20px_white]' : ''}`}
-                    />
-                  </g>
-                  {/* Troop Count Text - Made larger and shifted slightly right for better visibility */}
-                  <text 
-                    x={coords.x + 3} 
-                    y={coords.y + 18} 
-                    textAnchor="middle" 
-                    className="text-[18px] font-black select-none pointer-events-none"
-                    style={{ 
-                      fill: 'white', 
-                      fontFamily: 'Bangers, system-ui',
-                      filter: 'drop-shadow(0 2px 3px rgba(0,0,0,1))' 
-                    }}
-                  >
-                    {t.troops}
-                  </text>
+              {/* Connection Lines */}
+              <image href="/risk_connect_lines.svg" x="0" y="0" width="750" height="521" className="opacity-60 pointer-events-none brightness-150 contrast-125" />
+
+              <g className="territories">
+                {Object.keys(gameState.territories).map(id => (
+                  <path key={id} d={TERRITORY_PATHS[id]} onClick={() => onTerritoryClick(id)} onMouseEnter={() => { setHoveredId(id); import('../services/soundEngine').then(({ soundEngine }) => soundEngine.play('UI_HOVER')); }} onMouseLeave={() => setHoveredId(null)} className={`cursor-pointer transition-all outline-none ${targetId === id ? 'animate-pulse' : ''}`} style={getStyle(id)} />
+                ))}
+              </g>
+              
+              {/* Battle Link */}
+              {selectedId && targetId && LABEL_COORDS[selectedId] && LABEL_COORDS[targetId] && (
+                <g className="battle-link animate-in fade-in duration-700">
+                  <defs>
+                    <linearGradient id="battleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={gameState.players.find(p => p.id === gameState.territories[selectedId].owner)?.color || '#fff'} stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity="0.8" />
+                    </linearGradient>
+                  </defs>
+                  <line 
+                    x1={LABEL_COORDS[selectedId].x} 
+                    y1={LABEL_COORDS[selectedId].y} 
+                    x2={LABEL_COORDS[targetId].x} 
+                    y2={LABEL_COORDS[targetId].y} 
+                    stroke="url(#battleGradient)" 
+                    strokeWidth="3" 
+                    strokeDasharray="8 4"
+                    className="animate-[dash_20s_linear_infinite]"
+                  />
+                  <circle cx={LABEL_COORDS[selectedId].x} cy={LABEL_COORDS[selectedId].y} r="4" fill={gameState.players.find(p => p.id === gameState.territories[selectedId].owner)?.color || '#fff'} />
+                  <circle cx={LABEL_COORDS[targetId].x} cy={LABEL_COORDS[targetId].y} r="4" fill="#ef4444" className="animate-ping" />
                 </g>
-              );
-            })}
-          </g>
-        </svg>
+              )}
+              <g pointerEvents="none">
+                {(Object.entries(gameState.territories) as [string, TerritoryState][]).map(([id, t]) => {
+                  if (t.owner === 'neutral') return null;
+                  const coords = LABEL_COORDS[id];
+                  if (!coords) return null;
+                  const player = gameState.players.find(p => p.id === t.owner);
+                  const isSelected = selectedId === id;
+                  
+                  return (
+                    <g key={`node-${id}`} className="transition-all duration-300">
+                      {/* Soldier Silhouette Icon - Adjusted size to be smaller and shifted slightly right */}
+                      <g transform={`translate(${coords.x - 7}, ${coords.y - 18}) scale(0.038)`}>
+                        {/* Shadow/Outline for visibility */}
+                        <path 
+                          d={TROOP_ICON_PATH} 
+                          fill="black" 
+                          transform="translate(40, 40)"
+                          className="opacity-40"
+                        />
+                        <path 
+                          d={TROOP_ICON_PATH} 
+                          fill={player?.color || '#fff'} 
+                          stroke="white" 
+                          strokeWidth={isSelected ? "40" : "25"}
+                          className={`transition-all duration-300 ${isSelected ? 'filter drop-shadow-[0_0_20px_white]' : ''}`}
+                        />
+                      </g>
+                      {/* Troop Count Text - Made larger and shifted slightly right for better visibility */}
+                      <text 
+                        x={coords.x + 3} 
+                        y={coords.y + 18} 
+                        textAnchor="middle" 
+                        className="text-[18px] font-black select-none pointer-events-none"
+                        style={{ 
+                          fill: 'white', 
+                          fontFamily: 'Bangers, system-ui',
+                          filter: 'drop-shadow(0 2px 3px rgba(0,0,0,1))' 
+                        }}
+                      >
+                        {t.troops}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            </svg>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 export default WorldMap;
+

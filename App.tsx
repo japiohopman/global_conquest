@@ -1,629 +1,28 @@
-
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import WorldMap from './components/WorldMap';
 import TacticalCard from './components/TacticalCard';
 import MissionCard from './components/MissionCard';
 import GlobeIntro from './components/GlobeIntro';
 import TacticalDice from './components/TacticalDice';
-import { PLAYER_COLORS } from './constants';
-import { useGameStore } from './store/useGameStore';
+import HomePage from './pages/HomePage';
+import { Tooltip } from './src/components/Tooltip';
+import { useGameStore } from './store';
 import { soundEngine } from './services/soundEngine';
-import { Mission, PlayerConfig, TerritoryState, AiDifficulty, SetupRule, TheatreId } from './types';
-import { npcData, NPC } from './npc_characters';
+import { AiDifficulty, SetupRule, TheatreId } from './types';
+import { npcData } from './npc_characters';
 import { TacticalIcon } from './components/TacticalIcons';
 import { THEATRES } from './campaign_logic';
-import { Tooltip } from './src/components/Tooltip';
-import { Menu, Settings, X, ChevronLeft, ChevronRight, LayoutDashboard, Database, ShieldAlert, Zap, MessageSquare, Send, Globe, Users, RefreshCw } from 'lucide-react';
+import { Menu, Settings, X, Database, Zap, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  fallback?: React.ComponentType<{ error: Error }>;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
-
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Lobby error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      const Fallback = this.props.fallback || DefaultErrorFallback;
-      return <Fallback error={this.state.error!} />;
-    }
-
-    return this.props.children;
-  }
-}
-
-const DefaultErrorFallback: React.FC<{ error: Error }> = ({ error }) => (
-  <div className="fixed inset-0 z-[600] bg-red-950/90 backdrop-blur-3xl flex items-center justify-center p-8">
-    <div className="w-full max-w-md bg-zinc-900 border border-red-500/30 p-8 rounded-[2rem] shadow-[0_0_100px_rgba(239,68,68,0.2)] text-center">
-      <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-4" />
-      <h2 className="text-2xl bangers text-white mb-4">SYSTEM ERROR</h2>
-      <p className="text-zinc-300 text-sm mb-4">{error.message}</p>
-      <button 
-        onClick={() => window.location.reload()} 
-        className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white bangers rounded-xl transition-all"
-      >
-        RESTART SYSTEM
-      </button>
-    </div>
-  </div>
-);
-
-const PlayerSlot: React.FC<{
-  idx: number;
-  player: any;
-  npc: NPC | null;
-  isVacant: boolean;
-  isAi: boolean;
-  isHost: boolean;
-  slotIndex: number;
-  onToggleAi: (idx: number) => void;
-  canAddAi: boolean;
-}> = React.memo(({ idx, player, npc, isVacant, isAi, isHost, slotIndex, onToggleAi, canAddAi }) => (
-  <div className={`p-4 rounded-2xl border-2 transition-all flex items-center gap-4 ${slotIndex === idx ? 'bg-indigo-500/10 border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.2)]' : 'bg-black/40 border-white/5'}`}>
-    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-zinc-900 border border-white/10">
-      {npc ? <Avatar spriteIndex={npc.spriteIndex} type="head" className="w-full h-full" noBorder /> : <div className="w-full h-full flex items-center justify-center opacity-20"><Users className="w-6 h-6" /></div>}
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex justify-between items-center">
-        <span className="text-sm bangers tracking-widest uppercase truncate">{player ? player.name : `VACANT SLOT ${idx + 1}`}</span>
-        {player?.isHost && <span className="text-[8px] font-black text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded uppercase">Host</span>}
-        {isAi && <span className="text-[8px] font-black text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase">AI</span>}
-      </div>
-      <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest truncate">
-        {npc ? npc.name : isVacant ? 'Waiting for connection...' : 'Configuring...'}
-      </div>
-    </div>
-    
-    {isHost && isVacant && idx !== slotIndex && (
-      <button 
-        onClick={() => onToggleAi(idx)} 
-        disabled={!canAddAi}
-        className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {canAddAi ? 'Add AI' : 'No NPCs'}
-      </button>
-    )}
-    {isHost && isAi && (
-      <button onClick={() => onToggleAi(idx)} className="px-3 py-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg text-[8px] font-black text-red-500 uppercase tracking-widest transition-all">Remove</button>
-    )}
-    
-    {player && !isVacant && (
-      <div className={`w-3 h-3 rounded-full flex-shrink-0 ${player.isReady ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]' : 'bg-zinc-800'}`} />
-    )}
-  </div>
-));
-
-const CharacterSelector: React.FC<{
-  lobby: any;
-  slotIndex: number;
-  myPlayer: any;
-  onSelectCharacter: (npcId: string) => void;
-}> = React.memo(({ lobby, slotIndex, myPlayer, onSelectCharacter }) => (
-  <div className="lg:col-span-8 space-y-6">
-    <div className="flex justify-between items-end">
-      <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">Select Your Intelligence</label>
-      <span className="text-[8px] font-mono text-zinc-600 uppercase">Synchronized via Neural Link</span>
-    </div>
-
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-4 scrollbar-hide">
-      {npcData.map(n => {
-        const selectedBy = lobby.players.find((p: any) => p.npcId === n.id);
-        const isTaken = !!selectedBy && selectedBy.slotIndex !== slotIndex;
-        const isMe = selectedBy?.slotIndex === slotIndex;
-
-        return (
-          <div 
-            key={n.id}
-            onClick={() => !isTaken && !myPlayer.isReady && onSelectCharacter(n.id)}
-            className={`group relative p-2 border-2 rounded-[2rem] transition-all cursor-pointer overflow-hidden ${isMe ? 'border-indigo-500 bg-indigo-500/20 scale-105' : isTaken ? 'border-red-900/30 opacity-40 grayscale cursor-not-allowed' : 'border-zinc-800 hover:border-zinc-600 bg-black/40'}`}
-          >
-            <div className="relative aspect-square rounded-[1.5rem] overflow-hidden mb-2">
-              <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
-              {isTaken && (
-                <div className="absolute inset-0 bg-red-950/60 flex items-center justify-center backdrop-blur-sm">
-                  <span className="text-[10px] bangers text-white uppercase tracking-widest text-center px-2">Assigned to {selectedBy.name}</span>
-                </div>
-              )}
-            </div>
-            <div className="text-center pb-1">
-              <span className="text-[11px] bangers uppercase text-white truncate block">{n.name}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-));
-
-const LobbyControls: React.FC<{
-  myPlayer: any;
-  isHost: boolean;
-  allReady: boolean;
-  onToggleReady: () => void;
-  onStartGame: () => void;
-  isStartingGame: boolean;
-}> = React.memo(({ myPlayer, isHost, allReady, onToggleReady, onStartGame, isStartingGame }) => (
-  <div className="pt-8 space-y-4">
-    <button 
-      onClick={onToggleReady}
-      disabled={!myPlayer.npcId}
-      className={`w-full py-6 rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 ${myPlayer.isReady ? 'bg-emerald-600 border-emerald-900 text-white' : 'bg-indigo-600 border-indigo-900 text-white hover:bg-indigo-500'} active:border-0 active:translate-y-2 disabled:opacity-30 disabled:grayscale`}
-    >
-      {myPlayer.isReady ? 'Ready for Deployment' : 'Lock In Command'}
-    </button>
-
-    {isHost && (
-      <button 
-        onClick={onStartGame}
-        disabled={!allReady || isStartingGame}
-        className="w-full py-6 bg-white text-black rounded-2xl bangers text-3xl italic uppercase tracking-tighter transition-all border-b-8 border-zinc-400 hover:bg-zinc-100 active:border-0 active:translate-y-2 disabled:opacity-10 disabled:grayscale shadow-[0_20px_50px_rgba(255,255,255,0.1)]"
-      >
-        {isStartingGame ? 'Initializing...' : 'Initiate Global Conflict'}
-      </button>
-    )}
-  </div>
-));
-
-const LobbyScreen: React.FC = () => {
-  const lobby = useGameStore(s => s.lobby);
-  const slotIndex = useGameStore(s => s.slotIndex);
-  const selectCharacter = useGameStore(s => s.selectLobbyCharacter);
-  const toggleReady = useGameStore(s => s.toggleReady);
-  const toggleAi = useGameStore(s => s.toggleAiSlot);
-  const startGame = useGameStore(s => s.startMultiplayerGame);
-  
-  const [isAddingAi, setIsAddingAi] = useState(false);
-  const [isStartingGame, setIsStartingGame] = useState(false);
-  
-  if (!lobby || slotIndex === null) return null;
-
-  const myPlayer = lobby.players.find(p => p.slotIndex === slotIndex)!;
-  const isHost = myPlayer.isHost;
-  const activePlayers = lobby.players.filter(p => p.npcId !== null && (p.socketId !== null || p.type === 'ai'));
-  const allHumansReady = lobby.players.filter(p => p.type === 'human' && p.npcId !== null).every(p => p.isReady);
-  const allReady = activePlayers.length >= 2 && allHumansReady;
-  
-  const takenNpcIds = lobby.players.map(p => p.npcId).filter(id => !!id);
-  const canAddAi = takenNpcIds.length < npcData.length;
-
-  const handleToggleAi = async (idx: number) => {
-    if (!canAddAi) {
-      soundEngine.play('ERROR');
-      return;
-    }
-    setIsAddingAi(true);
-    try {
-      await toggleAi(idx);
-    } catch (error) {
-      console.error('Failed to toggle AI:', error);
-      soundEngine.play('ERROR');
-    } finally {
-      setIsAddingAi(false);
-    }
-  };
-
-  const handleStartGame = async () => {
-    setIsStartingGame(true);
-    try {
-      await startGame();
-    } catch (error) {
-      console.error('Failed to start game:', error);
-      soundEngine.play('ERROR');
-      setIsStartingGame(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[500] bg-[#050508] text-white flex flex-col items-center justify-center p-8 overflow-hidden animate-in fade-in duration-700">
-      <GlobeIntro />
-      
-      <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-12">
-        {/* Left: Player Slots */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.6em]">Command Registry</span>
-            <h2 className="text-5xl bangers text-white uppercase italic tracking-tighter">Tactical Lobby</h2>
-          </div>
-
-          <div className="space-y-3">
-            {[0, 1, 2, 3, 4, 5].map(idx => {
-              const p = lobby.players.find(lp => lp.slotIndex === idx);
-              const npc = p?.npcId ? npcData.find(n => n.id === p.npcId) : null;
-              const isVacant = !p || (p.socketId === null && p.type === 'human');
-              const isAi = p?.type === 'ai';
-              
-              return (
-                <PlayerSlot
-                  key={idx}
-                  idx={idx}
-                  player={p}
-                  npc={npc}
-                  isVacant={isVacant}
-                  isAi={isAi}
-                  isHost={isHost}
-                  slotIndex={slotIndex}
-                  onToggleAi={handleToggleAi}
-                  canAddAi={canAddAi}
-                />
-              );
-            })}
-          </div>
-
-          <LobbyControls
-            myPlayer={myPlayer}
-            isHost={isHost}
-            allReady={allReady}
-            onToggleReady={toggleReady}
-            onStartGame={handleStartGame}
-            isStartingGame={isStartingGame}
-          />
-        </div>
-
-        <CharacterSelector
-          lobby={lobby}
-          slotIndex={slotIndex}
-          myPlayer={myPlayer}
-          onSelectCharacter={selectCharacter}
-        />
-      </div>
-    </div>
-  );
-};
-
-const RoomBrowser: React.FC<{ onClose: () => void, onJoin: (id: string) => void }> = ({ onClose, onJoin }) => {
-  const availableRooms = useGameStore(s => s.availableRooms);
-  const isFetchingRooms = useGameStore(s => s.isFetchingRooms);
-  const fetchRooms = useGameStore(s => s.fetchRooms);
-
-  useEffect(() => {
-    fetchRooms();
-    const interval = setInterval(fetchRooms, 5000);
-    return () => clearInterval(interval);
-  }, [fetchRooms]);
-
-  return (
-    <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in fade-in zoom-in duration-500">
-      <div className="w-full max-w-2xl bg-zinc-900 border border-indigo-500/30 p-10 rounded-[3rem] shadow-[0_0_100px_rgba(79,70,229,0.2)] flex flex-col gap-8 relative overflow-hidden">
-         <button onClick={onClose} className="absolute top-8 right-8 w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors">X</button>
-         
-         <div className="flex flex-col gap-2">
-           <div className="flex items-center gap-3">
-             <Globe className="w-5 h-5 text-indigo-500 animate-pulse" />
-             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.6em]">Satellite Uplink</span>
-           </div>
-           <h2 className="text-5xl bangers text-white uppercase italic tracking-tighter">Active Conflict Zones</h2>
-         </div>
-
-         <div className="flex-1 overflow-y-auto max-h-[400px] pr-2 space-y-3 scrollbar-hide">
-            {availableRooms.length === 0 && !isFetchingRooms && (
-              <div className="py-20 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full border-2 border-dashed border-zinc-800 flex items-center justify-center mx-auto">
-                  <ShieldAlert className="w-8 h-8 text-zinc-800" />
-                </div>
-                <p className="text-zinc-600 font-mono text-[10px] uppercase tracking-widest leading-relaxed">No active signals detected.<br/>Initiate a new command or wait for deployments.</p>
-              </div>
-            )}
-            
-            {availableRooms.map(room => (
-              <div key={room.id} className="group p-6 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between hover:bg-white/10 hover:border-indigo-500/30 transition-all">
-                 <div className="flex flex-col gap-1">
-                    <span className="text-xl bangers text-white tracking-widest">{room.id}</span>
-                    <div className="flex items-center gap-3">
-                       <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3 text-zinc-500" />
-                          <span className="text-[10px] font-mono text-zinc-500">{room.playerCount} COMMANDERS</span>
-                       </div>
-                       <div className="w-1 h-1 rounded-full bg-zinc-800" />
-                       <span className={`text-[10px] font-black uppercase italic ${room.isStarted ? 'text-amber-500' : 'text-emerald-500'}`}>
-                          {room.isStarted ? 'In Progress' : 'Awaiting Deployment'}
-                       </span>
-                    </div>
-                 </div>
-                 <button 
-                   onClick={() => onJoin(room.id)}
-                   className="px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white bangers text-lg rounded-xl transition-all shadow-lg group-hover:scale-105 active:scale-95"
-                 >
-                   Establish Link
-                 </button>
-              </div>
-            ))}
-         </div>
-
-         <div className="flex justify-between items-center pt-6 border-t border-white/5">
-            <button 
-              onClick={() => fetchRooms()} 
-              disabled={isFetchingRooms}
-              className="flex items-center gap-2 text-[10px] font-black text-zinc-500 hover:text-indigo-400 transition-colors uppercase tracking-widest disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3 h-3 ${isFetchingRooms ? 'animate-spin' : ''}`} />
-              Re-Scan Frequencies
-            </button>
-            <span className="text-[8px] font-mono text-zinc-700 uppercase">Neural Net v4.2.0</span>
-         </div>
-      </div>
-    </div>
-  );
-};
-
-const MultiplayerChat: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const messages = useGameStore(s => s.messages);
-  const sendMessage = useGameStore(s => s.sendChatMessage);
-  const [text, setText] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  const handleSend = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!text.trim()) return;
-    sendMessage(text);
-    setText('');
-  };
-
-  return (
-    <motion.div 
-      initial={{ x: 400, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 400, opacity: 0 }}
-      className="fixed top-24 right-6 bottom-32 w-80 bg-zinc-950/90 backdrop-blur-2xl border border-indigo-500/30 rounded-[2rem] flex flex-col z-[100] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden"
-    >
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-indigo-500/10">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-4 h-4 text-indigo-400" />
-          <span className="text-[10px] font-black text-white uppercase tracking-widest">Comm Link</span>
-        </div>
-        <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-zinc-500 transition-colors">X</button>
-      </div>
-      
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-        {messages.length === 0 && (
-          <div className="h-full flex items-center justify-center text-center px-8">
-            <span className="text-[8px] font-mono text-zinc-600 uppercase leading-relaxed tracking-widest">Secure line established. Waiting for transmissions...</span>
-          </div>
-        )}
-        {messages.map(m => (
-          <div key={m.id} className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black uppercase tracking-tighter" style={{ color: m.senderColor }}>{m.senderName}</span>
-              <span className="text-[6px] font-mono text-zinc-600">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <p className="text-xs text-zinc-300 font-medium leading-relaxed bg-white/5 p-2 rounded-lg rounded-tl-none border-l-2" style={{ borderLeftColor: m.senderColor }}>{m.text}</p>
-          </div>
-        ))}
-      </div>
-
-      <form onSubmit={handleSend} className="p-4 bg-black/40 border-t border-white/5 flex gap-2">
-        <input 
-          type="text" 
-          value={text} 
-          onChange={(e) => setText(e.target.value)} 
-          placeholder="ENTER MESSAGE..." 
-          className="flex-1 bg-zinc-900 border border-indigo-500/20 rounded-xl px-4 py-2 text-[10px] font-mono text-indigo-400 outline-none focus:border-indigo-500 transition-all"
-        />
-        <button type="submit" className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white hover:bg-indigo-500 transition-all shadow-lg active:scale-95">
-          <Send className="w-4 h-4" />
-        </button>
-      </form>
-    </motion.div>
-  );
-};
-
-const HEADSHOT_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/sprite_sheet.png';
-const PROFILE_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/side_profiles.png';
-const DEFEATED_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/defeated.png';
-const VICTORY_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/enemy_npcs/victory.png';
-const CARD_BACK_URL = 'https://raw.githubusercontent.com/japiohopman/risk/main/the_back_of_a_board_game_card_.webp';
-
-console.log('INITIATING GLOBAL CONQUEST: NEURAL LINK BACKEND IS:', import.meta.env.VITE_BACKEND_URL || 'LOCAL ORIGIN');
-
-const loadedSheets = new Set<string>();
-
-const ChromaKeyFilter = () => (
-  <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-    <filter id="chroma-key-green">
-      <feColorMatrix
-        type="matrix"
-        values="1 0 0 0 0
-                0 1 0 0 0
-                0 0 1 0 0
-                1 -2.5 1 1 0"
-      />
-    </filter>
-  </svg>
-);
-
-export const Avatar: React.FC<{ 
-  player?: Partial<PlayerConfig>, 
-  spriteIndex?: number, 
-  color?: string, 
-  className?: string, 
-  type?: 'head' | 'profile' | 'defeated' | 'victory', 
-  mirrored?: boolean, 
-  noBorder?: boolean 
-}> = ({ player, spriteIndex, color, className = "w-8 h-8", type = 'head', mirrored = false, noBorder = false }) => {
-  const [isIntersecting, setIsIntersecting] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const effectiveSpriteIndex = spriteIndex !== undefined ? spriteIndex : player?.spriteIndex;
-  const effectiveColor = color || player?.color || '#52525b';
-  
-  let url = HEADSHOT_URL;
-  if (type === 'profile') url = PROFILE_URL;
-  else if (type === 'defeated') url = DEFEATED_URL;
-  else if (type === 'victory') url = VICTORY_URL;
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    if (loadedSheets.has(url)) {
-      setIsIntersecting(true);
-      setIsLoaded(true);
-      return;
-    }
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsIntersecting(true);
-        observer.disconnect();
-      }
-    }, { rootMargin: '100px' });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, [url]);
-
-  useEffect(() => {
-    if (!isIntersecting || isLoaded) return;
-    const img = new Image();
-    img.src = url;
-    img.onload = () => {
-      loadedSheets.add(url);
-      setIsLoaded(true);
-    };
-  }, [isIntersecting, url, isLoaded]);
-
-  if (effectiveSpriteIndex === undefined) {
-    return (
-      <div ref={containerRef} className={`${className} rounded-full border border-zinc-700 flex items-center justify-center bg-zinc-900 overflow-hidden relative shadow-inner`} style={{ borderColor: effectiveColor }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1" className="w-1/2 h-1/2 opacity-60"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </div>
-    );
-  }
-
-  const col = effectiveSpriteIndex % 3;
-  const row = Math.floor(effectiveSpriteIndex / 3);
-  const xPercent = (col / 2) * 100;
-  const yPercent = (row / 2) * 100;
-
-  return (
-    <div 
-      ref={containerRef}
-      className={`
-        ${className} 
-        ${type === 'head' ? 'rounded-full' : 'rounded-none'} 
-        ${(type === 'victory' || noBorder) ? 'border-0 bg-transparent' : 'border-2 border-zinc-700 bg-zinc-950 shadow-lg'} 
-        overflow-hidden relative transition-all duration-700
-      `} 
-      style={type === 'victory' || noBorder ? {} : { borderColor: effectiveColor }}
-    >
-       {!isLoaded && (
-         <div className="absolute inset-0 bg-zinc-900 flex flex-col items-center justify-center gap-1 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-indigo-500/10 to-transparent animate-pulse" />
-            <div className="text-[6px] font-black text-indigo-500/40 uppercase tracking-widest animate-pulse">Syncing...</div>
-         </div>
-       )}
-       {isIntersecting && (
-         <div 
-          key={effectiveSpriteIndex} 
-          className={`absolute inset-0 bg-no-repeat transition-opacity duration-1000 ${mirrored ? 'scale-x-[-1]' : ''} ${isLoaded ? 'opacity-100' : 'opacity-0'}`} 
-          style={{ 
-            backgroundImage: isLoaded ? `url(${url})` : 'none', 
-            backgroundSize: '300% 300%', 
-            backgroundPosition: `${xPercent}% ${yPercent}%`,
-            filter: type === 'victory' ? 'url(#chroma-key-green)' : 'none'
-          }} 
-         />
-       )}
-       {type !== 'victory' && !noBorder && <div className="absolute inset-0 border-4 border-black/20 pointer-events-none" />}
-    </div>
-  );
-};
-
-const CampaignBriefing: React.FC<{ theatre: any, onInitiate: (count: number) => void, onCancel: () => void }> = ({ theatre, onInitiate, onCancel }) => {
-  const [commanderCount, setCommanderCount] = useState(2);
-  const maxCommanders = theatre.rivalNpcIds.length + 1;
-
-  return (
-    <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-8 animate-in fade-in zoom-in duration-500">
-      <div className="w-full max-w-4xl bg-zinc-900 border border-indigo-500/30 p-12 rounded-[3rem] shadow-[0_0_100px_rgba(79,70,229,0.2)] flex flex-col gap-8 relative overflow-hidden">
-         <button onClick={onCancel} className="absolute top-8 right-8 w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/10">X</button>
-         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-pulse" />
-         <div className="flex flex-col gap-2">
-           <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.6em]">Neural Link Assessment</span>
-           <h2 className="text-6xl bangers text-white uppercase italic tracking-tighter">{theatre.name}</h2>
-         </div>
-         <p className="text-zinc-400 text-lg leading-relaxed font-medium max-w-2xl">{theatre.description}</p>
-         
-         <div className="grid grid-cols-2 gap-8 py-8 border-y border-white/5">
-            <div className="space-y-4">
-               <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Total Commanders in Theatre</span>
-               <div className="flex gap-4">
-                  {[2, 3, 4, 5, 6].filter(c => c <= maxCommanders).map(c => (
-                    <button 
-                      key={c} 
-                      onClick={() => setCommanderCount(c)}
-                      className={`w-12 h-12 rounded-xl bangers text-2xl flex items-center justify-center transition-all ${commanderCount === c ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)]' : 'bg-white/5 text-zinc-500 hover:bg-white/10'}`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-               </div>
-            </div>
-            <div className="space-y-4">
-               <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Identified Rivals</span>
-               <div className="flex gap-2">
-                  {theatre.rivalNpcIds.slice(0, commanderCount - 1).map((id: string) => {
-                    const npc = npcData.find(n => n.id === id)!;
-                    return <div key={id} title={npc.name}><Avatar spriteIndex={npc.spriteIndex} type="head" className="w-12 h-12 border-white/10" /></div>
-                  })}
-               </div>
-            </div>
-         </div>
-  
-         <button onClick={() => onInitiate(commanderCount)} className="mt-4 py-6 bg-indigo-600 hover:bg-indigo-500 text-white bangers text-3xl rounded-3xl transition-all shadow-[0_20px_50px_rgba(79,70,229,0.3)] border-b-8 border-indigo-900 active:border-0 active:translate-y-2 uppercase tracking-tighter">Synchronize Command Core</button>
-      </div>
-    </div>
-  );
-};
-
-const FlipMissionCard: React.FC<{ mission: Mission, onSelect: () => void }> = ({ mission, onSelect }) => {
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleClick = () => {
-    if (!isFlipped && !isProcessing) {
-      setIsFlipped(true);
-      setIsProcessing(true);
-      soundEngine.play('INTEL');
-      setTimeout(() => { onSelect(); }, 1100);
-    }
-  };
-
-  return (
-    <div onClick={handleClick} className={`relative w-56 h-80 cursor-pointer transition-all duration-700 [transform-style:preserve-3d] ${isFlipped ? '[transform:rotateY(180deg)]' : 'hover:scale-105 hover:rotate-1'}`}>
-      <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] bg-white rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(255,255,255,0.2)] border-4 border-white">
-         <MissionCard mission={mission} />
-      </div>
-      <div className="absolute inset-0 [backface-visibility:hidden] bg-zinc-900 border-4 border-zinc-700 rounded-2xl flex flex-col items-center justify-center p-4 shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden" style={{ backgroundImage: `url(${CARD_BACK_URL})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-         <div className="absolute inset-0 bg-black/50 pointer-events-none" />
-         <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full border-2 border-white/20 flex items-center justify-center bg-black/40 backdrop-blur-md">
-               <TacticalIcon type="annexation" className="w-8 h-8 text-white/40 animate-pulse" />
-            </div>
-            <span className="text-[10px] bangers text-white uppercase tracking-[0.4em] block">Classified</span>
-         </div>
-      </div>
-    </div>
-  );
-};
+// Extracted Components
+import { Avatar, ChromaKeyFilter } from './components/Avatar';
+import { LobbyScreen } from './components/LobbyScreen';
+import RoomBrowser from './components/RoomBrowser';
+import { MultiplayerChat } from './components/MultiplayerChat';
+import { CampaignBriefing } from './components/CampaignBriefing';
+import { FlipMissionCard } from './components/FlipMissionCard';
+import { AppErrorBoundary } from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   const isGameStarted = useGameStore(s => s.isGameStarted);
@@ -705,12 +104,6 @@ const App: React.FC = () => {
     }
   }, [pendingInvasion]);
 
-  const initiateNeuralLink = async () => {
-    soundEngine.play('UI_CLICK');
-    await soundEngine.startBgm('SELECT');
-    setMode('SKIRMISH_SETUP');
-  };
-
   // Fixed isCombatActive logic to check both territories exist and have owners
   const isCombatActive = useMemo(() => {
     if (!selectedId || !targetId) return false;
@@ -720,60 +113,17 @@ const App: React.FC = () => {
   }, [selectedId, targetId, territories]);
 
   if (mode === 'HOME') return (
-    <div className="flex h-screen w-screen items-center justify-center bg-[#050508] text-white font-sans overflow-hidden select-none relative">
-      <ChromaKeyFilter /><GlobeIntro />
-      <div className="z-10 flex flex-col items-center gap-6 sm:gap-12 max-w-4xl px-8 text-center animate-in fade-in zoom-in duration-1000">
-         <div className="space-y-4 text-center">
-            <h1 className="text-5xl sm:text-7xl lg:text-9xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-[0_20px_50px_rgba(79,70,229,0.3)]">GLOBAL<br/>CONQUEST</h1>
-            <div className="flex items-center justify-center gap-4"><div className="h-px w-12 bg-indigo-500/50" /><span className="text-[10px] sm:text-[14px] font-black text-indigo-400 uppercase tracking-[0.6em]">Neural Directive</span><div className="h-px w-12 bg-indigo-500/50" /></div>
-         </div>
-         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center">
-            {!isMultiplayer && (
-              <div className="flex flex-col gap-2 items-start">
-                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Room ID</span>
-                <input 
-                  type="text" 
-                  value={multiplayerRoomId} 
-                  onChange={(e) => setMultiplayerRoomId(e.target.value.toUpperCase())}
-                  className="bg-zinc-900 border border-indigo-500/30 text-white px-4 py-3 rounded-lg font-mono text-sm focus:outline-none focus:border-indigo-500 transition-all w-40"
-                />
-              </div>
-            )}
-            <button onClick={() => setMode('CAMPAIGN_HUB')} className="group relative px-12 py-5 bg-indigo-600 text-white font-black uppercase tracking-[0.4em] text-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_30px_60px_rgba(79,70,229,0.2)]">
-               <span className="relative z-10 italic">Eternal War Campaign</span>
-            </button>
-            <button onClick={initiateNeuralLink} className="group relative px-12 py-5 bg-white text-black font-black uppercase tracking-[0.4em] text-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_30px_60px_rgba(255,255,255,0.1)]">
-              <span className="relative z-10 italic">Standard Skirmish</span>
-            </button>
-            <button 
-              onClick={async () => {
-                if (isMultiplayer) {
-                  disconnectMultiplayer();
-                } else {
-                  await soundEngine.startBgm('SELECT');
-                  connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, multiplayerRoomId);
-                  setMode('SKIRMISH_SETUP');
-                }
-              }} 
-              className={`group relative px-12 py-5 ${isMultiplayer ? 'bg-red-600' : 'bg-emerald-600'} text-white font-black uppercase tracking-[0.4em] text-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_30px_60px_rgba(16,185,129,0.2)]`}
-            >
-              <span className="relative z-10 italic">{isMultiplayer ? 'Disconnect Link' : 'Establish Multi-Link'}</span>
-            </button>
-            {!isMultiplayer && (
-              <button onClick={() => setIsBrowserOpen(true)} className="w-14 h-14 bg-zinc-900 border border-indigo-500/30 rounded-xl flex items-center justify-center text-indigo-400 hover:bg-indigo-900/40 transition-all shadow-lg active:scale-95" title="Browse Active Rooms">
-                <Globe className="w-6 h-6" />
-              </button>
-            )}
-         </div>
-      </div>
-      {isBrowserOpen && <RoomBrowser onClose={() => setIsBrowserOpen(false)} onJoin={async (id) => { 
-        setMultiplayerRoomId(id); 
-        await soundEngine.startBgm('SELECT');
-        connectMultiplayer(import.meta.env.VITE_BACKEND_URL || window.location.origin, id); 
-        setMode('SKIRMISH_SETUP');
-        setIsBrowserOpen(false); 
-      }} />}
-    </div>
+    <HomePage
+      mode={mode}
+      setMode={setMode}
+      multiplayerRoomId={multiplayerRoomId}
+      setMultiplayerRoomId={setMultiplayerRoomId}
+      isMultiplayer={isMultiplayer}
+      connectMultiplayer={connectMultiplayer}
+      disconnectMultiplayer={disconnectMultiplayer}
+      isBrowserOpen={isBrowserOpen}
+      setIsBrowserOpen={setIsBrowserOpen}
+    />
   );
 
   if (mode === 'CAMPAIGN_HUB') return (
@@ -833,14 +183,14 @@ const App: React.FC = () => {
             </div>
         </div>
       </div>
-      {selectedTheatreId && <CampaignBriefing theatre={THEATRES.find(t => t.id === selectedTheatreId)} onInitiate={(count) => { initCampaignGame(selectedTheatreId, count); setSelectedTheatreId(null); }} onCancel={() => setSelectedTheatreId(null)} />}
+      {selectedTheatreId && <CampaignBriefing theatre={THEATRES.find(t => t.id === selectedTheatreId)!} onInitiate={(count) => { initCampaignGame(selectedTheatreId, count); setSelectedTheatreId(null); }} onCancel={() => setSelectedTheatreId(null)} />}
     </div>
   );
 
   if (mode === 'SKIRMISH_SETUP') return (
     <div className="flex h-screen items-center justify-center bg-[#050508] text-[#d4d4d8] p-10 font-sans overflow-hidden select-none relative animate-in fade-in duration-700">
       <ChromaKeyFilter /><GlobeIntro />
-      {isMultiplayer && <ErrorBoundary><LobbyScreen /></ErrorBoundary>}
+      {isMultiplayer && <AppErrorBoundary><LobbyScreen /></AppErrorBoundary>}
       
       {/* Scanline Overlay */}
       <div className="absolute inset-0 pointer-events-none z-[100] opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
@@ -862,12 +212,12 @@ const App: React.FC = () => {
         </div>
       </button>
 
-      <div className="w-full max-w-7xl bg-zinc-950/90 border-2 border-indigo-900/30 rounded-[2rem] sm:rounded-[4rem] p-6 sm:p-16 shadow-[0_0_120px_rgba(79,70,229,0.2)] relative backdrop-blur-3xl overflow-y-auto max-h-[90vh] scrollbar-hide z-10 border-t-indigo-500/20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-16">
+      <div className="w-full max-w-7xl bg-zinc-950/90 border-2 border-indigo-900/30 rounded-[2rem] sm:rounded-[4rem] p-4 sm:p-16 shadow-[0_0_120px_rgba(79,70,229,0.2)] relative backdrop-blur-3xl overflow-y-auto max-h-[90vh] scrollbar-hide z-10 border-t-indigo-500/20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-16">
           {/* Left Column */}
           <div className="lg:col-span-6 space-y-6 sm:space-y-12">
-            <div className="space-y-4">
-              <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">1. Establish Identity</label>
+            <div className="space-y-3 sm:space-y-4">
+              <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block text-center sm:text-left">1. Establish Identity</label>
               
               {/* Character Selection Carousel for Human Player */}
               {(() => {
@@ -876,7 +226,7 @@ const App: React.FC = () => {
                 
                 return (
                   <div 
-                    className="bg-black/60 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border shadow-2xl relative overflow-hidden group transition-all duration-700"
+                    className="bg-black/60 p-4 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border shadow-2xl relative overflow-hidden group transition-all duration-700"
                     style={{ 
                       boxShadow: `0 0 0 1px ${npcColor}20, 0 25px 50px -12px rgba(0, 0, 0, 0.5)`,
                       borderColor: `${npcColor}20` 
@@ -884,7 +234,7 @@ const App: React.FC = () => {
                   >
                     {/* Tactical Frame */}
                     <div 
-                      className="absolute inset-4 border-2 border-dashed pointer-events-none opacity-20 rounded-[1.5rem] sm:rounded-[2rem] transition-all duration-700"
+                      className="absolute inset-3 sm:inset-4 border-2 border-dashed pointer-events-none opacity-20 rounded-[1.5rem] sm:rounded-[2rem] transition-all duration-700"
                       style={{ borderColor: npcColor }}
                     />
 
@@ -893,24 +243,24 @@ const App: React.FC = () => {
                       style={{ background: `linear-gradient(to bottom, ${npcColor}10, transparent)` }}
                     />
                     
-                    <div className="flex justify-between items-center mb-4 sm:mb-8">
+                    <div className="flex justify-between items-center mb-2 sm:mb-8">
                       <div className="flex flex-col">
                         <span 
-                          className="text-[10px] font-black uppercase tracking-[0.4em] italic transition-colors duration-700"
+                          className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em] italic transition-colors duration-700"
                           style={{ color: npcColor }}
                         >
                           Neural Link Active
                         </span>
-                        <span className="text-[8px] font-mono text-zinc-500 uppercase mt-1">Commander Synchronization: 99%</span>
+                        <span className="text-[6px] sm:text-[8px] font-mono text-zinc-500 uppercase mt-0.5 sm:mt-1">Commander Synchronization: 99%</span>
                       </div>
-                      <div className="flex gap-1.5">
-                        {npcData.map((npc, idx) => (
+                      <div className="flex gap-1">
+                        {npcData.map((npc) => (
                           <div 
                             key={npc.id} 
-                            className="w-1.5 h-1.5 rounded-full transition-all duration-500"
+                            className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full transition-all duration-500"
                             style={{ 
                               backgroundColor: humans[0].npcId === npc.id ? npcColor : '#27272a',
-                              width: humans[0].npcId === npc.id ? '1.5rem' : '0.375rem',
+                              width: humans[0].npcId === npc.id ? '1rem' : '0.25rem',
                               boxShadow: humans[0].npcId === npc.id ? `0 0 10px ${npcColor}80` : 'none'
                             }}
                           />
@@ -918,7 +268,7 @@ const App: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="relative flex items-center justify-center py-6">
+                    <div className="relative flex items-center justify-center py-2 sm:py-6">
                       {/* Left Arrow */}
                       <button 
                         onClick={() => {
@@ -940,16 +290,15 @@ const App: React.FC = () => {
                             { category: 'iconic', file: `iconic_${randomIndex}` }
                           ]);
                         }}
-                        className="absolute left-0 z-20 w-14 h-14 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:border-white/40 transition-all group/btn shadow-xl active:scale-90"
-                        style={{ '--hover-bg': npcColor } as any}
+                        className="absolute left-0 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:border-white/40 transition-all group/btn shadow-xl active:scale-90"
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-7 h-7 group-hover/btn:-translate-x-0.5 transition-transform"><path d="M15 18l-6-6 6-6"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-5 h-5 sm:w-7 sm:h-7 group-hover/btn:-translate-x-0.5 transition-transform"><path d="M15 18l-6-6 6-6"/></svg>
                       </button>
 
                       {/* Avatar Display */}
-                      <div className="relative w-48 h-48 sm:w-72 sm:h-72 flex items-center justify-center">
+                      <div className="relative w-36 h-36 sm:w-72 sm:h-72 flex items-center justify-center">
                         <div 
-                          className="absolute inset-0 rounded-full blur-[40px] sm:blur-[60px] animate-pulse transition-all duration-700" 
+                          className="absolute inset-0 rounded-full blur-[30px] sm:blur-[60px] animate-pulse transition-all duration-700" 
                           style={{ backgroundColor: `${npcColor}30` }}
                         />
                         <div 
@@ -989,30 +338,30 @@ const App: React.FC = () => {
                             { category: 'iconic', file: `iconic_${randomIndex}` }
                           ]);
                         }}
-                        className="absolute right-0 z-20 w-14 h-14 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:border-white/40 transition-all group/btn shadow-xl active:scale-90"
+                        className="absolute right-0 z-20 w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white hover:border-white/40 transition-all group/btn shadow-xl active:scale-90"
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-7 h-7 group-hover/btn:translate-x-0.5 transition-transform"><path d="M9 18l6-6-6-6"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-5 h-5 sm:w-7 sm:h-7 group-hover/btn:translate-x-0.5 transition-transform"><path d="M9 18l6-6-6-6"/></svg>
                       </button>
                     </div>
 
-                    <div className="mt-8 text-center space-y-2">
+                    <div className="mt-4 sm:mt-8 text-center space-y-1 sm:space-y-2">
                       <div className="flex flex-col items-center">
-                        <h3 className="text-5xl bangers text-white uppercase italic tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                        <h3 className="text-3xl sm:text-5xl bangers text-white uppercase italic tracking-tighter drop-shadow-[0_0_20px_rgba(255,255,255,0.2)] leading-none">
                           {currentNpc?.name}
                         </h3>
                         <span 
-                          className={`text-2xl opacity-80 mt-1 transition-all duration-700 ${currentNpc?.fontClass}`}
+                          className={`text-lg sm:text-2xl opacity-80 mt-0.5 transition-all duration-700 ${currentNpc?.fontClass}`}
                           style={{ color: npcColor, textShadow: `0 0 15px ${npcColor}40` }}
                         >
                           {currentNpc?.translatedName}
                         </span>
                       </div>
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="h-px w-8 transition-colors duration-700" style={{ backgroundColor: `${npcColor}40` }} />
-                        <p className="text-[10px] font-black uppercase tracking-[0.4em] italic transition-colors duration-700" style={{ color: npcColor }}>
+                      <div className="flex items-center justify-center gap-2 sm:gap-3">
+                        <div className="h-px w-6 sm:w-8 transition-colors duration-700" style={{ backgroundColor: `${npcColor}40` }} />
+                        <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.4em] italic transition-colors duration-700" style={{ color: npcColor }}>
                           {currentNpc?.heritage}
                         </p>
-                        <div className="h-px w-8 transition-colors duration-700" style={{ backgroundColor: `${npcColor}40` }} />
+                        <div className="h-px w-6 sm:w-8 transition-colors duration-700" style={{ backgroundColor: `${npcColor}40` }} />
                       </div>
                     </div>
                   </div>
@@ -1020,19 +369,19 @@ const App: React.FC = () => {
               })()}
             </div>
 
-            <div className="space-y-6">
-              <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">2. Combatant Count</label>
-              <div className="bg-zinc-900/60 p-10 rounded-[3rem] border border-white/5 shadow-2xl space-y-8">
+            <div className="space-y-4 sm:space-y-6">
+              <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block text-center sm:text-left">2. Combatant Count</label>
+              <div className="bg-zinc-900/60 p-6 sm:p-10 rounded-[2rem] sm:rounded-[3rem] border border-white/5 shadow-2xl space-y-6 sm:space-y-8">
                 <div className="flex justify-between items-center">
-                  <span className="text-zinc-400 bangers text-2xl uppercase italic">Total Commanders in Theatre</span>
-                  <span className="text-4xl bangers text-indigo-500">{totalPlayers}</span>
+                  <span className="text-zinc-400 bangers text-xl sm:text-2xl uppercase italic">Total Commanders</span>
+                  <span className="text-3xl sm:text-4xl bangers text-indigo-500">{totalPlayers}</span>
                 </div>
-                <div className="grid grid-cols-5 gap-4">
+                <div className="grid grid-cols-5 gap-2 sm:gap-4">
                   {[2, 3, 4, 5, 6].map(num => (
                     <button 
                       key={num} 
                       onClick={() => { soundEngine.play('UI_CLICK'); setTotalPlayers(num); setSelectedNpcs([]); }}
-                      className={`py-6 rounded-2xl bangers text-2xl transition-all border-2 ${totalPlayers === num ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]' : 'bg-black/40 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:border-zinc-700'}`}
+                      className={`py-4 sm:py-6 rounded-xl sm:rounded-2xl bangers text-xl sm:text-2xl transition-all border-2 ${totalPlayers === num ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]' : 'bg-black/40 border-zinc-800 text-zinc-600 hover:text-zinc-400 hover:border-zinc-700'}`}
                     >
                       {num}
                     </button>
@@ -1043,23 +392,23 @@ const App: React.FC = () => {
           </div>
 
           {/* Right Column */}
-          <div className="lg:col-span-6 space-y-12">
-            <div className="space-y-10">
-              <div className="space-y-6">
-                <div className="flex justify-between items-end">
+          <div className="lg:col-span-6 space-y-8 sm:space-y-12">
+            <div className="space-y-6 sm:space-y-10">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-2">
                   <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">3. Select Rival Intelligence</label>
-                  <div className="relative">
+                  <div className="relative w-full sm:w-auto">
                     <input 
                       type="text" 
                       placeholder="SEARCH RIVALS..." 
                       value={rivalSearch}
                       onChange={(e) => setRivalSearch(e.target.value)}
-                      className="bg-black/60 border-b-2 border-indigo-500/30 text-[10px] font-mono text-indigo-400 px-4 py-2 outline-none focus:border-indigo-500 w-48 transition-all rounded-t-lg"
+                      className="bg-black/60 border-b-2 border-indigo-500/30 text-[10px] font-mono text-indigo-400 px-4 py-2 outline-none focus:border-indigo-500 w-full sm:w-48 transition-all rounded-t-lg"
                     />
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-4 sm:grid-cols-3 gap-3 sm:gap-4 max-h-[300px] sm:max-h-[450px] overflow-y-auto pr-2 scrollbar-hide">
+                <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-4 max-h-[250px] sm:max-h-[450px] overflow-y-auto pr-2 scrollbar-hide">
                   {filteredRivals.map(n => (
                     <Tooltip key={n.id} text={`Rival: ${n.name}`}>
                       <div 
@@ -1067,9 +416,9 @@ const App: React.FC = () => {
                           soundEngine.play('UI_CLICK');
                           setSelectedNpcs(prev => prev.includes(n.id) ? prev.filter(x => x !== n.id) : [...prev, n.id].slice(0, totalPlayers - 1));
                         }} 
-                        className={`group p-1 sm:p-2 border-2 transition-all cursor-pointer relative rounded-[1rem] sm:rounded-[2rem] overflow-hidden ${selectedNpcs.includes(n.id) ? 'border-indigo-500 bg-indigo-500/20 scale-105 shadow-[0_0_40px_rgba(79,70,229,0.4)]' : 'border-zinc-800 opacity-40 hover:opacity-100 hover:border-zinc-600 bg-black/40'}`}
+                        className={`group p-1.5 sm:p-2 border-2 transition-all cursor-pointer relative rounded-[1rem] sm:rounded-[2rem] overflow-hidden ${selectedNpcs.includes(n.id) ? 'border-indigo-500 bg-indigo-500/20 scale-105 shadow-[0_0_40px_rgba(79,70,229,0.4)]' : 'border-zinc-800 opacity-40 hover:opacity-100 hover:border-zinc-600 bg-black/40'}`}
                       >
-                        <div className="relative aspect-square rounded-[0.8rem] sm:rounded-[1.5rem] overflow-hidden mb-1 sm:mb-3 ring-1 ring-white/5">
+                        <div className="relative aspect-square rounded-[0.8rem] sm:rounded-[1.5rem] overflow-hidden mb-1.5 sm:mb-3 ring-1 ring-white/5">
                           <Avatar spriteIndex={n.spriteIndex} type="victory" className="w-full h-full scale-110" noBorder />
                           {selectedNpcs.includes(n.id) && (
                             <div className="absolute inset-0 bg-indigo-500/30 flex items-center justify-center backdrop-blur-[2px]">
@@ -1079,8 +428,8 @@ const App: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        <div className="text-center px-1 pb-1">
-                          <span className="text-[9px] sm:text-[11px] bangers uppercase text-white truncate block tracking-wide">{n.name}</span>
+                        <div className="text-center px-1 pb-0.5">
+                          <span className="text-[8px] sm:text-[11px] bangers uppercase text-white truncate block tracking-wide">{n.name}</span>
                         </div>
                       </div>
                     </Tooltip>
@@ -1089,13 +438,13 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-4 sm:space-y-6">
-                <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">4. Difficulty Calibration</label>
-                <div className="grid grid-cols-3 gap-4 sm:gap-6">
+                <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block text-center sm:text-left">4. Difficulty Calibration</label>
+                <div className="grid grid-cols-3 gap-2 sm:gap-6">
                   {(['easy', 'normal', 'hard'] as AiDifficulty[]).map(d => (
                     <Tooltip key={d} text={d === 'easy' ? 'Reduced AI aggression.' : d === 'hard' ? 'Maximum AI efficiency.' : 'Balanced challenge.'}>
                       <button 
                         onClick={() => { soundEngine.play('UI_CLICK'); setDifficulty(d); }}
-                        className={`w-full py-4 sm:py-8 rounded-[1rem] sm:rounded-[2rem] bangers text-xl sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${difficulty === d ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_40px_rgba(79,70,229,0.4)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
+                        className={`w-full py-3 sm:py-8 rounded-xl sm:rounded-2rem bangers text-lg sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${difficulty === d ? 'bg-indigo-600 border-indigo-400 text-white shadow-[0_0_40px_rgba(79,70,229,0.4)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
                       >
                         {difficulty === d && <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.1)_50%,transparent_50%)] bg-[length:100%_4px] opacity-20" />}
                         <span className="relative z-10 italic">{d}</span>
@@ -1106,13 +455,13 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-4 sm:space-y-6">
-                <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block">5. Deployment Protocol</label>
-                <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                <label className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] block text-center sm:text-left">5. Deployment Protocol</label>
+                <div className="grid grid-cols-2 gap-2 sm:gap-6">
                   {(['random', 'manual'] as SetupRule[]).map(r => (
                     <Tooltip key={r} text={r === 'random' ? 'Territories are automatically distributed.' : 'Manual territory claim.'}>
                       <button 
                         onClick={() => { soundEngine.play('UI_CLICK'); setSetupRule(r); }}
-                        className={`w-full py-4 sm:py-8 rounded-[1rem] sm:rounded-[2rem] bangers text-xl sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${setupRule === r ? 'bg-white text-black border-white shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
+                        className={`w-full py-3 sm:py-8 rounded-xl sm:rounded-2rem bangers text-lg sm:text-3xl uppercase tracking-[0.1em] transition-all border-2 relative overflow-hidden group/btn ${setupRule === r ? 'bg-white text-black border-white shadow-[0_0_40px_rgba(255,255,255,0.2)] scale-105' : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:border-zinc-600'}`}
                       >
                         {setupRule === r && <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.05)_50%,transparent_50%)] bg-[length:100%_4px] opacity-20" />}
                         <span className="relative z-10 italic">{r}</span>
@@ -1125,13 +474,13 @@ const App: React.FC = () => {
             </div>
  
              <div className="flex flex-col gap-4 sm:gap-6 pt-6 sm:pt-12 border-t border-white/5">
-                <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <button 
                     onClick={() => {
                       soundEngine.startBgm('MAIN');
                       setMode('HOME');
                     }} 
-                    className="py-4 sm:py-8 bg-zinc-900/80 rounded-[1.5rem] sm:rounded-[2.5rem] bangers text-xl sm:text-3xl text-zinc-500 hover:text-white transition-all uppercase border-2 border-white/5 hover:border-white/20 italic"
+                    className="order-2 sm:order-1 py-4 sm:py-8 bg-zinc-900/80 rounded-xl sm:rounded-[2.5rem] bangers text-xl sm:text-3xl text-zinc-500 hover:text-white transition-all uppercase border-2 border-white/5 hover:border-white/20 italic"
                   >
                     Abort Mission
                   </button>
@@ -1146,14 +495,14 @@ const App: React.FC = () => {
                       initGame(totalPlayers, humans, difficulty, setupRule, selectedNpcs); 
                     }} 
                     disabled={selectedNpcs.length < totalPlayers - 1}
-                    className={`py-4 sm:py-8 rounded-[1.5rem] sm:rounded-[2.5rem] bangers text-2xl sm:text-4xl transition-all border-b-4 sm:border-b-8 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] uppercase italic tracking-tighter ${selectedNpcs.length < totalPlayers - 1 ? 'bg-zinc-800 border-zinc-900 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-900 hover:bg-indigo-500 hover:-translate-y-1 active:translate-y-1 active:border-b-0 shadow-[0_0_40px_rgba(79,70,229,0.3)]'}`}
+                    className={`order-1 sm:order-2 py-4 sm:py-8 rounded-xl sm:rounded-[2.5rem] bangers text-2xl sm:text-4xl transition-all border-b-4 sm:border-b-8 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] uppercase italic tracking-tighter ${selectedNpcs.length < totalPlayers - 1 ? 'bg-zinc-800 border-zinc-900 opacity-50 cursor-not-allowed' : 'bg-indigo-600 border-indigo-900 hover:bg-indigo-500 hover:-translate-y-1 active:translate-y-1 active:border-b-0 shadow-[0_0_40px_rgba(79,70,229,0.3)]'}`}
                   >
-                    {selectedNpcs.length < totalPlayers - 1 ? `Select ${totalPlayers - 1 - selectedNpcs.length} More Rivals` : 'Initiate Global Conflict'}
+                    {selectedNpcs.length < totalPlayers - 1 ? `Select ${totalPlayers - 1 - selectedNpcs.length} More` : 'Initiate Conflict'}
                   </button>
                 </div>
                 <div className="flex items-center justify-center gap-4">
                   <div className="h-px flex-1 bg-white/5" />
-                  <span className="text-[8px] font-mono text-zinc-700 uppercase tracking-[0.5em]">Neural Link Protocol v4.2.0</span>
+                  <span className="text-[8px] font-mono text-zinc-700 uppercase tracking-[0.5em]">Neural Link v4.2.0</span>
                   <div className="h-px flex-1 bg-white/5" />
                 </div>
             </div>
@@ -1215,7 +564,7 @@ const App: React.FC = () => {
               <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mt-1 block">Active Commander</span>
            </div>
            {/* Mobile Close Button */}
-           <button onClick={() => setIsLeftSidebarOpen(false)} className="lg:hidden absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white">
+           <button onClick={() => setIsLeftSidebarOpen(false)} className="lg:hidden absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 border border-white/10 flex items-center justify-center text-white active:scale-90 transition-transform">
               <X className="w-5 h-5" />
            </button>
         </div>
@@ -1255,39 +604,50 @@ const App: React.FC = () => {
       </aside>
 
       <main className="flex-1 relative bg-black overflow-hidden flex flex-col">
-        {/* Mobile HUD Controls */}
-        <div className="lg:hidden absolute top-6 left-6 right-6 z-40 flex justify-between pointer-events-none">
+        {/* Compact Mobile HUD */}
+        <div className="lg:hidden absolute top-4 left-4 right-4 z-40 flex justify-between pointer-events-none items-start">
            <button 
              onClick={() => setIsLeftSidebarOpen(true)} 
-             className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform"
+             className="w-10 h-10 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white pointer-events-auto shadow-xl active:scale-90 transition-all"
            >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
            </button>
-           <div className="flex gap-3">
-             <button 
-               onClick={() => setIsChatOpen(true)} 
-               className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform relative"
-             >
-                <MessageSquare className="w-6 h-6" />
-                {useGameStore.getState().messages.length > 0 && !isChatOpen && <div className="absolute top-2 right-2 w-3 h-3 bg-indigo-500 rounded-full border-2 border-black animate-pulse" />}
-             </button>
-             <button 
-               onClick={() => setIsCardOverlayOpen(true)} 
-               className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform"
-             >
-                <Database className="w-6 h-6" />
-             </button>
-             <button 
-               onClick={() => setIsRightSidebarOpen(true)} 
-               className="w-12 h-12 bg-black/80 backdrop-blur-md border border-white/10 rounded-2xl flex items-center justify-center text-white pointer-events-auto shadow-2xl active:scale-90 transition-transform"
-             >
-                <Settings className="w-6 h-6" />
-             </button>
+           <div className="flex flex-col gap-2 items-end">
+             <div className="flex gap-2">
+               <button 
+                 onClick={() => setIsChatOpen(true)} 
+                 className="w-10 h-10 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white pointer-events-auto shadow-xl active:scale-90 transition-all relative"
+               >
+                  <MessageSquare className="w-5 h-5" />
+                  {useGameStore.getState().messages.length > 0 && !isChatOpen && <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full border border-black animate-pulse" />}
+               </button>
+               <button 
+                 onClick={() => setIsCardOverlayOpen(true)} 
+                 className="w-10 h-10 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white pointer-events-auto shadow-xl active:scale-90 transition-all"
+               >
+                  <Database className="w-5 h-5" />
+               </button>
+               <button 
+                 onClick={() => setIsRightSidebarOpen(true)} 
+                 className="w-10 h-10 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl flex items-center justify-center text-white pointer-events-auto shadow-xl active:scale-90 transition-all"
+               >
+                  <Settings className="w-5 h-5" />
+               </button>
+             </div>
+             {/* Small Status Pill */}
+             <div className="bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-3 pointer-events-auto shadow-lg">
+                <div className="flex items-center gap-1.5">
+                   <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: players[currentPlayerIndex]?.color }} />
+                   <span className="text-[9px] font-black text-white uppercase tracking-wider truncate max-w-[80px]">{players[currentPlayerIndex]?.name}</span>
+                </div>
+                <div className="w-px h-3 bg-white/10" />
+                <span className="text-[9px] font-mono text-indigo-400 font-bold uppercase">{phase}</span>
+             </div>
            </div>
         </div>
 
       <WorldMap 
-        gameState={{territories, players, currentPlayerIndex, phase, reinforcementsAvailable, winner, selectedId} as any} 
+        gameState={useGameStore.getState() as GameState} 
         selectedId={selectedId} 
         targetId={targetId}
         suggestedId={strategicAdvice?.targetTerritoryId} 
@@ -1301,68 +661,102 @@ const App: React.FC = () => {
             initial={{ opacity: 0, y: -100, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -50, scale: 0.9 }}
-            className="fixed top-12 left-1/2 -translate-x-1/2 z-[100] pointer-events-none"
+            className="fixed top-20 lg:top-12 left-1/2 -translate-x-1/2 z-[100] pointer-events-none"
           >
-            <div className="bg-black/90 backdrop-blur-2xl border border-white/10 px-10 py-5 rounded-[2.5rem] shadow-[0_40px_80px_rgba(0,0,0,0.9)] flex items-center gap-8 overflow-hidden relative group">
+            <div className="bg-black/90 backdrop-blur-2xl border border-white/10 px-6 py-3 lg:px-10 lg:py-5 rounded-full lg:rounded-[2.5rem] shadow-[0_40px_80px_rgba(0,0,0,0.9)] flex items-center gap-4 lg:gap-8 overflow-hidden relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_3s_infinite]" />
               <div className="relative">
-                <Avatar player={players[currentPlayerIndex]} className="w-16 h-16 ring-4 ring-white/5" />
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center border-2 border-black">
-                  <Zap className="w-3 h-3 text-white fill-white" />
+                <Avatar player={players[currentPlayerIndex]} className="w-10 h-10 lg:w-16 lg:h-16 ring-2 lg:ring-4 ring-white/5" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 lg:w-6 lg:h-6 bg-indigo-600 rounded-full flex items-center justify-center border-2 border-black">
+                  <Zap className="w-2 h-2 lg:w-3 lg:h-3 text-white fill-white" />
                 </div>
               </div>
               <div className="flex flex-col">
-                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.6em] mb-1">Authorization Confirmed</span>
-                <h2 className="text-4xl bangers text-white uppercase italic tracking-tighter leading-none">
+                <span className="text-[6px] lg:text-[8px] font-black text-indigo-400 uppercase tracking-[0.6em] mb-0.5 lg:mb-1">Authorization Confirmed</span>
+                <h2 className="text-xl lg:text-4xl bangers text-white uppercase italic tracking-tighter leading-none">
                   Your Turn, <span style={{ color: players[currentPlayerIndex]?.color }}>{players[currentPlayerIndex]?.name}</span>
                 </h2>
-              </div>
-              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center ml-2">
-                {getPhaseIcon(phase)}
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
         
-        {/* Phase Indicator for Mobile */}
-        <div className="lg:hidden absolute bottom-6 left-6 right-6 z-40 flex flex-col gap-4 pointer-events-none">
+        {/* Phase Indicator for Mobile - Optimized */}
+        <div className="lg:hidden absolute bottom-4 left-4 right-4 z-40 flex flex-col gap-3 pointer-events-none">
            <div className="flex justify-between items-end">
-              <div className="bg-black/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl pointer-events-auto shadow-2xl">
-                 <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block mb-1">Reserves</span>
-                 <div className="text-4xl font-black italic mono leading-none" style={{ color: players[currentPlayerIndex]?.color }}>{reinforcementsAvailable}</div>
+              <div className="bg-black/60 backdrop-blur-md border border-white/10 p-3 rounded-xl pointer-events-auto shadow-xl">
+                 <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest block mb-0.5">Reserves</span>
+                 <div className="text-2xl font-black italic mono leading-none" style={{ color: players[currentPlayerIndex]?.color }}>{reinforcementsAvailable}</div>
               </div>
-              <div className="bg-black/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl pointer-events-auto shadow-2xl flex items-center gap-4">
+              <div className="bg-black/60 backdrop-blur-md border border-white/10 p-3 rounded-xl pointer-events-auto shadow-xl flex items-center gap-3">
                  <div className="flex flex-col items-end">
-                    <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest block">Phase</span>
-                    <span className="text-sm bangers text-white uppercase italic">{phase}</span>
+                    <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest block">Phase</span>
+                    <span className="text-xs bangers text-white uppercase italic">{phase}</span>
                  </div>
-                 <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">
-                    {getPhaseIcon(phase)}
+                 <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center">
+                    {React.cloneElement(getPhaseIcon(phase) as React.ReactElement, { className: 'w-5 h-5 text-indigo-500' })}
                  </div>
               </div>
            </div>
            <button 
              disabled={players[currentPlayerIndex]?.type === 'ai' || phase === 'waiting'} 
              onClick={nextPhase} 
-             className={`w-full py-5 bangers text-2xl rounded-2xl border-b-4 transition-all pointer-events-auto shadow-2xl ${players[currentPlayerIndex]?.type === 'ai' || phase === 'waiting' ? 'bg-zinc-800 text-zinc-600 border-zinc-900' : 'bg-indigo-600 text-white border-indigo-900 active:border-0 active:translate-y-1'} ${phase !== 'waiting' && players[currentPlayerIndex]?.type === 'human' ? 'animate-pulse' : ''}`}
+             className={`w-full py-4 bangers text-xl rounded-xl border-b-4 transition-all pointer-events-auto shadow-xl ${players[currentPlayerIndex]?.type === 'ai' || phase === 'waiting' ? 'bg-zinc-800 text-zinc-600 border-zinc-900 opacity-50' : 'bg-indigo-600 text-white border-indigo-900 active:border-0 active:translate-y-1'} ${phase !== 'waiting' && players[currentPlayerIndex]?.type === 'human' ? 'animate-pulse' : ''}`}
            >
-             Confirm Action
+             {phase === 'setup' ? 'Deploy Asset' : phase === 'reinforce' ? 'Deploy Reserves' : 'Confirm Action'}
            </button>
         </div>
 
         {isCombatActive && selectedId && targetId && (
-          <div className="absolute bottom-0 left-0 right-0 lg:h-44 bg-zinc-950/95 backdrop-blur-3xl border-t border-white/10 z-50 animate-in slide-in-from-bottom-full duration-500 flex flex-col lg:flex-row items-center justify-center p-6 lg:px-12 gap-6 lg:gap-16 shadow-[0_-20px_100px_rgba(0,0,0,0.8)]">
-            <div className="flex flex-col items-center gap-2 lg:gap-4">
-               <div className="flex items-center gap-3">
-                 <Avatar player={players.find(p => p.id === territories[selectedId]?.owner)} type="head" className="w-10 h-10 border-indigo-500/50" />
-                 <span className="text-[10px] bangers text-indigo-400 uppercase tracking-widest">{territories[selectedId]?.name}</span>
-               </div>
-               <div className="flex gap-2 lg:gap-4">
-                {lastBattleResult?.aRolls.map((v, i) => <TacticalDice key={i} value={v} type="attacker" />) || Array.from({length: Math.min(3, (territories[selectedId]?.troops || 1) - 1)}).map((_, i) => <div key={i} className="w-12 h-12 lg:w-16 lg:h-16 border-2 border-dashed border-indigo-500/20 rounded-xl" />)}
+          <div className="absolute bottom-0 left-0 right-0 lg:h-44 bg-zinc-950/95 backdrop-blur-3xl border-t border-white/10 z-50 animate-in slide-in-from-bottom-full duration-500 flex flex-col lg:flex-row items-center justify-center p-4 lg:p-6 lg:px-12 gap-4 lg:gap-16 shadow-[0_-20px_100px_rgba(0,0,0,0.8)]">
+            <div className="flex w-full lg:w-auto justify-between lg:justify-center items-center gap-4 lg:gap-8">
+              <div className="flex flex-col items-center gap-1.5 lg:gap-4">
+                 <div className="flex items-center gap-2 lg:gap-3">
+                   <Avatar player={players.find(p => p.id === territories[selectedId]?.owner)} type="head" className="w-8 h-8 lg:w-10 lg:h-10 border-indigo-500/50" />
+                   <span className="text-[8px] lg:text-[10px] bangers text-indigo-400 uppercase tracking-widest truncate max-w-[60px] lg:max-w-none">{territories[selectedId]?.name}</span>
+                 </div>
+                 <div className="flex gap-1.5 lg:gap-4">
+                  {lastBattleResult?.aRolls.map((v, i) => <TacticalDice key={i} value={v} type="attacker" />) || Array.from({length: Math.min(3, (territories[selectedId]?.troops || 1) - 1)}).map((_, i) => <div key={i} className="w-10 h-10 lg:w-16 lg:h-16 border-2 border-dashed border-indigo-500/20 rounded-lg lg:rounded-xl" />)}
+                </div>
+              </div>
+
+              <div className="hidden lg:flex flex-col items-center gap-2">
+                 {(players[currentPlayerIndex]?.type === 'human' || isAwaitingHumanDefense) && (
+                   <button 
+                     onClick={() => {
+                       if (lastBattleResult) clearBattleResult();
+                       setTimeout(() => {
+                         executeAttack(
+                           Math.min(3, (territories[selectedId]?.troops || 2) - 1), 
+                           Math.min(2, territories[targetId]?.troops || 1)
+                         );
+                       }, 50);
+                     }} 
+                     disabled={(territories[selectedId]?.troops || 0) <= 1}
+                     className="px-10 py-4 bg-indigo-600 text-white bangers text-2xl rounded-xl hover:bg-indigo-500 border-b-4 border-indigo-900 shadow-[0_0_30px_rgba(79,70,229,0.4)] active:translate-y-1 active:border-b-0 disabled:opacity-20 disabled:grayscale transition-all"
+                   >
+                     {isAwaitingHumanDefense ? 'Roll Defense' : (lastBattleResult ? 'Re-Engage' : 'Execute Assault')}
+                   </button>
+                 )}
+                 {!isAwaitingHumanDefense && (
+                   <button onClick={closeBattle} className="text-[10px] font-black uppercase text-zinc-600 hover:text-zinc-400 transition-all tracking-widest mt-2 underline italic">Withdraw Forces</button>
+                 )}
+              </div>
+
+              <div className="flex flex-col items-center gap-1.5 lg:gap-4">
+                 <div className="flex items-center gap-2 lg:gap-3">
+                   <span className="text-[8px] lg:text-[10px] bangers text-red-400 uppercase tracking-widest truncate max-w-[60px] lg:max-w-none">{territories[targetId]?.name}</span>
+                   <Avatar player={players.find(p => p.id === territories[targetId]?.owner)} type="head" className="w-8 h-8 lg:w-10 lg:h-10 border-red-500/50" />
+                 </div>
+                 <div className="flex gap-1.5 lg:gap-4">
+                  {lastBattleResult?.dRolls.map((v, i) => <TacticalDice key={i} value={v} type="defender" />) || Array.from({length: Math.min(2, territories[targetId]?.troops || 1)}).map((_, i) => <div key={i} className="w-10 h-10 lg:w-16 lg:h-16 border-2 border-dashed border-red-500/20 rounded-lg lg:rounded-xl" />)}
+                </div>
               </div>
             </div>
-            <div className="flex flex-col items-center gap-2">
+
+            {/* Mobile Action Buttons for Combat */}
+            <div className="flex lg:hidden w-full gap-3 mt-2">
                {(players[currentPlayerIndex]?.type === 'human' || isAwaitingHumanDefense) && (
                  <button 
                    onClick={() => {
@@ -1375,23 +769,14 @@ const App: React.FC = () => {
                      }, 50);
                    }} 
                    disabled={(territories[selectedId]?.troops || 0) <= 1}
-                   className="px-10 py-4 bg-indigo-600 text-white bangers text-2xl rounded-xl hover:bg-indigo-500 border-b-4 border-indigo-900 shadow-[0_0_30px_rgba(79,70,229,0.4)] active:translate-y-1 active:border-b-0 disabled:opacity-20 disabled:grayscale transition-all"
+                   className="flex-1 py-4 bg-indigo-600 text-white bangers text-xl rounded-xl border-b-4 border-indigo-900 shadow-lg active:translate-y-1 active:border-b-0 disabled:opacity-20 transition-all"
                  >
                    {isAwaitingHumanDefense ? 'Roll Defense' : (lastBattleResult ? 'Re-Engage' : 'Execute Assault')}
                  </button>
                )}
                {!isAwaitingHumanDefense && (
-                 <button onClick={closeBattle} className="text-[10px] font-black uppercase text-zinc-600 hover:text-zinc-400 transition-all tracking-widest mt-2 underline italic">Withdraw Forces</button>
+                 <button onClick={closeBattle} className="px-6 py-4 bg-zinc-900 border border-white/10 text-white bangers text-xl rounded-xl shadow-lg active:scale-95 transition-all">Withdraw</button>
                )}
-            </div>
-            <div className="flex flex-col items-center gap-2 lg:gap-4">
-               <div className="flex items-center gap-3">
-                 <span className="text-[10px] bangers text-red-400 uppercase tracking-widest">{territories[targetId]?.name}</span>
-                 <Avatar player={players.find(p => p.id === territories[targetId]?.owner)} type="head" className="w-10 h-10 border-red-500/50" />
-               </div>
-               <div className="flex gap-2 lg:gap-4">
-                {lastBattleResult?.dRolls.map((v, i) => <TacticalDice key={i} value={v} type="defender" />) || Array.from({length: Math.min(2, territories[targetId]?.troops || 1)}).map((_, i) => <div key={i} className="w-12 h-12 lg:w-16 lg:h-16 border-2 border-dashed border-red-500/20 rounded-xl" />)}
-              </div>
             </div>
           </div>
         )}
@@ -1534,7 +919,8 @@ const App: React.FC = () => {
          </div>
       </aside>
 
-      {isCardOverlayOpen && (        <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-2xl p-8 flex flex-col animate-in fade-in duration-500">
+      {isCardOverlayOpen && (
+        <div className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-2xl p-8 flex flex-col animate-in fade-in duration-500">
           <div className="flex justify-between mb-8 border-b border-white/10 pb-4">
             <h2 className="text-4xl bangers text-white uppercase italic">Tactical Inventory</h2>
             <button onClick={() => setIsCardOverlayOpen(false)} className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors font-black">X</button>
