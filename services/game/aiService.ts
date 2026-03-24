@@ -1,7 +1,7 @@
 import { IAIService, IService, IValidationService } from '../core/interfaces';
 import { runAiTurn } from '../aiBrain';
 import { getStrategicAdvice } from '../geminiService';
-import { GameState, MoveSuggestion } from '../../validation';
+import { GameState, MoveSuggestion } from '../../types';
 import { ServiceRegistry } from '../registry';
 
 export class AIService implements IAIService {

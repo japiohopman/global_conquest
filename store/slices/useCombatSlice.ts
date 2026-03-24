@@ -5,6 +5,7 @@ import { PlayerId } from '../../types';
 
 export interface CombatSlice {
   lastBattleResult: BattleResult | null;
+  pendingInvasion: { from: string, to: string, min: number } | null;
   executeAttack: (aDiceCount: number, dDiceCount: number) => void;
   clearBattleResult: () => void;
   closeBattle: () => void;
@@ -21,6 +22,7 @@ export const createCombatSlice: StateCreator<
   CombatSlice
 > = (set, get) => ({
   lastBattleResult: null,
+  pendingInvasion: null,
 
   executeAttack: (aDiceCount, dDiceCount) => {
     const state = get();

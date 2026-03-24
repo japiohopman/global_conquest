@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Globe, Users } from 'lucide-react';
 import GlobeIntro from '../components/GlobeIntro';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore } from '../store';
 import { soundEngine } from '../services/soundEngine';
 import RoomBrowser from '../components/RoomBrowser';
 

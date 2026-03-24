@@ -7,6 +7,7 @@ import TacticalDice from './components/TacticalDice';
 import HomePage from './pages/HomePage';
 import { Tooltip } from './src/components/Tooltip';
 import { useGameStore } from './store';
+import { GameState } from './types';
 import { soundEngine } from './services/soundEngine';
 import { AiDifficulty, SetupRule, TheatreId } from './types';
 import { npcData } from './npc_characters';

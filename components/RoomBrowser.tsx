@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Globe, Users, RefreshCw } from 'lucide-react';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore } from '../store';
 import { ShieldAlert } from 'lucide-react';
 
 interface RoomBrowserProps {

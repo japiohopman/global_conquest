@@ -128,6 +128,7 @@ export interface GameState {
   tradeInCount: number;
   capturedThisTurn: boolean;
   isCampaignMode: boolean;
+  isGameStarted: boolean;
   winner: PlayerId | null;
   selectedId: string | null;
   targetId: string | null;

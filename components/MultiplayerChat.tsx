@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore } from '../store';
 
 interface MultiplayerChatProps {
   onClose: () => void;

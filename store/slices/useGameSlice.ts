@@ -2,7 +2,7 @@ import { StateCreator } from 'zustand';
 import { GameStore, BattleResult, CommsState } from '../types';
 import { 
   GamePhase, PlayerId, TerritoryState, PlayerConfig, 
-  AssetCard, Mission, AiDifficulty, SetupRule 
+  AssetCard, Mission, AiDifficulty, SetupRule, MoveSuggestion 
 } from '../../types';
 import { ADJACENCIES, CONTINENTS, MISSION_LIST, FULL_DECK } from '../../constants';
 import { soundEngine } from '../../services/soundEngine';

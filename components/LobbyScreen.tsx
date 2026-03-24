@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore } from '../store';
 import { npcData, NPC } from '../npc_characters';
 import { soundEngine } from '../services/soundEngine';
 import { Users, ShieldAlert } from 'lucide-react';
