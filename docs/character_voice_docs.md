@@ -1,4 +1,3 @@
-legacy code!
 # 🎙️ RiskFlow AI - Master Audio Blueprint (Phonetic Identity Update)
 
 This document defines the complete phonetic architecture for RiskFlow AI. We use a **Concatenative TTS System**—pre-generating "atomic" audio bytes using Gemini and stitching them in real-time to create dynamic NPC speech.
@@ -7,19 +6,19 @@ This document defines the complete phonetic architecture for RiskFlow AI. We use
 
 ## 1. Phonetic Identity Matrix
 
-We map our 9 NPCs to 3 specific Gemini TTS voice models, but we use stylistic prompt engineering during the "Bake" phase to differentiate their performances based on heritage and gender.
+We map our 9 NPCs to specific Gemini TTS voice models, using stylistic prompt engineering during the "Bake" phase to differentiate their performances based on heritage and gender.
 
 | NPC | Archetype | Voice Model | Gender | Heritage / Accent Style |
 | :--- | :--- | :--- | :--- | :--- |
-| **Havoc** | Aggressor | `Kore` | Male | Gritty American Veteran |
-| **Aegis** | Stoic | `Charon` | Female | Nordic / Resonant Shield-Maiden |
-| **Vex** | Aggressor | `Kore` | Male | Manic Scrap-City Wastelander |
-| **Duchess** | Tactician | `Puck` | Female | Sharp British Aristocracy |
-| **Ghost** | Stoic | `Charon` | Male | Deep Slavic / Spetsnaz-style |
-| **Prime** | Tactician | `Puck` | Male | Clear Classical Imperialist |
-| **Blitz** | Aggressor | `Kore` | Male | Rapid German Industrialist |
-| **Raven** | Tactician | `Puck` | Female | Cold Pan-Asian Tech-Operative |
-| **Shogun** | Stoic | `Charon` | Male | Robotic Neo-Tokyo Warrior |
+| **The Chief Dealer** | Aggressor | `Kore` | Male | Boisterous Queens Tycoon (Trump-inspired) |
+| **The Rising General** | Stoic | `Charon` | Male | Gritty Slavic Frontline Defender |
+| **The Eternal Marshal** | Aggressor | `Kore` | Male | Enthusiastic East Asian Dynast |
+| **The Red Emperor** | Tactician | `Puck` | Male | Disciplined Chinese Party Chairman |
+| **The Shadow Czar** | Stoic | `Charon` | Male | Cold Slavic Intelligence Strongman |
+| **The Desert Crown** | Tactician | `Puck` | Male | Petro-State Heir / Middle Eastern Prince |
+| **The Union Chancellor** | Tactician | `Puck` | Male | European Technocrat / Dutch Polder Manager (Rutte-inspired) |
+| **The Subcontinental Strategist** | Tactician | `Puck` | Male | Serene South Asian Democratic Giant |
+| **The Silicon Emperor** | Stoic | `Charon` | Male | Intense Tech Mogul / Disruptive Oligarch |
 
 ---
 
@@ -47,5 +46,5 @@ Total Asset Footprint: **630 Files** (70 per NPC).
 ## 4. The Stitcher Logic
 
 The `soundEngine.ts` will stitch these bytes with a **-50ms crossfade**.
-Example call: `soundEngine.speak('general_havoc', ['attacking_1', 'alaska'])`
-Resulting Audio: "Assaulting... Alaska!" (delivered in Havoc's gritty American snarl).
+Example call: `soundEngine.speak('the_chief_dealer', ['attacking_1', 'alaska'])`
+Resulting Audio: "Assaulting... Alaska!" (delivered in Trump's iconic Queens Tycoon style).
